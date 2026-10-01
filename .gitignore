@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Test fixtures (personal photos) and downloaded ML models - not committed
+dev/fixtures/
+dev/*.task
+dev/*.tflite
