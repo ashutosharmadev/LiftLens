@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  checkShoulder,
   distance,
-  findWaistEdges,
+  findBodyEdges,
   type Landmark,
   LANDMARK,
   measureFront,
@@ -53,50 +54,82 @@ describe("waistRowY and torsoCenterX", () => {
   });
 });
 
-describe("findWaistEdges", () => {
+describe("findBodyEdges", () => {
   it("finds the outermost person pixels around the start", () => {
     const row = [B, B, P, P, P, P, B, B];
-    expect(findWaistEdges(row, 3, P)).toEqual({ left: 2, right: 5 });
+    expect(findBodyEdges(row, 3, P)).toEqual({ left: 2, right: 5 });
   });
 
   it("stops at the first gap, so arms beside the torso are excluded", () => {
     const row = [P, P, B, P, P, P, B, P];
-    expect(findWaistEdges(row, 4, P)).toEqual({ left: 3, right: 5 });
+    expect(findBodyEdges(row, 4, P)).toEqual({ left: 3, right: 5 });
   });
 
   it("returns null when the start is on background", () => {
-    expect(findWaistEdges([P, B, P], 1, P)).toBeNull();
+    expect(findBodyEdges([P, B, P], 1, P)).toBeNull();
   });
 
   it("returns null when the start is outside the row", () => {
-    expect(findWaistEdges([P, P], 5, P)).toBeNull();
+    expect(findBodyEdges([P, P], 5, P)).toBeNull();
   });
 
   it("reaches the image edge when the person fills the row", () => {
-    expect(findWaistEdges([P, P, P, P], 1, P)).toEqual({ left: 0, right: 3 });
+    expect(findBodyEdges([P, P, P, P], 1, P)).toEqual({ left: 0, right: 3 });
+  });
+});
+
+describe("checkShoulder", () => {
+  it("accepts outer shoulders a bit wider than the joints", () => {
+    expect(checkShoulder(56, 40)).toBe("ok"); // 1.4
+  });
+
+  it("flags outlines far wider than the joints (arms joined the outline)", () => {
+    expect(checkShoulder(80, 40)).toBe("too_wide"); // 2.0
+  });
+
+  it("flags outlines narrower than expected (walk stopped at a gap)", () => {
+    expect(checkShoulder(40, 40)).toBe("too_narrow"); // 1.0
   });
 });
 
 describe("measureFront", () => {
-  it("combines widths and ratios", () => {
-    // Torso spans columns 30..70 on the waist row.
-    const row = Array.from({ length: 100 }, (_, x) => (x >= 30 && x <= 70 ? P : B));
-    const result = measureFront(BODY, 100, 200, () => row, P);
+  // Body outline spans columns 22..78 on the shoulder row (y=40)
+  // and 30..70 on the waist row (y=105).
+  const span = (from: number, to: number) =>
+    Array.from({ length: 100 }, (_, x) => (x >= from && x <= to ? P : B));
+  const rows: Record<number, number[]> = { 40: span(22, 78), 105: span(30, 70) };
+  const maskRowAt = (y: number) => rows[y] ?? span(0, -1);
 
-    expect(result.shoulderWidthPx).toBeCloseTo(40);
-    expect(result.hipWidthPx).toBeCloseTo(20);
-    expect(result.shoulderToHip).toBeCloseTo(2);
+  it("measures shoulders and waist edge to edge", () => {
+    const result = measureFront(BODY, 100, 200, maskRowAt, P);
+
+    expect(result.shoulderY).toBe(40);
+    expect(result.shoulderEdges).toEqual({ left: 22, right: 78 });
+    expect(result.shoulderWidthPx).toBe(56);
+    expect(result.shoulderJointWidthPx).toBeCloseTo(40);
+    expect(result.shoulderCheck).toBe("ok");
     expect(result.waistY).toBe(105);
     expect(result.waistEdges).toEqual({ left: 30, right: 70 });
     expect(result.waistWidthPx).toBe(40);
-    expect(result.shoulderToWaist).toBeCloseTo(1);
+    expect(result.shoulderToWaist).toBeCloseTo(1.4);
   });
 
-  it("asks for the mask row at the waist", () => {
+  it("keeps shoulder-to-hip joint to joint", () => {
+    const result = measureFront(BODY, 100, 200, maskRowAt, P);
+    expect(result.hipWidthPx).toBeCloseTo(20);
+    expect(result.shoulderToHip).toBeCloseTo(2);
+  });
+
+  it("flags a too-wide shoulder outline without failing", () => {
+    const wide: Record<number, number[]> = { ...rows, 40: span(0, 99) }; // arms raised into the outline
+    const result = measureFront(BODY, 100, 200, (y) => wide[y] ?? span(0, -1), P);
+    expect(result.shoulderCheck).toBe("too_wide");
+  });
+
+  it("asks for the shoulder row, then the waist row", () => {
     const rowsRequested: number[] = [];
-    const row = Array(100).fill(P);
-    measureFront(BODY, 100, 200, (y) => (rowsRequested.push(y), row), P);
-    expect(rowsRequested).toEqual([105]);
+    measureFront(BODY, 100, 200, (y) => (rowsRequested.push(y), maskRowAt(y)), P);
+    expect(rowsRequested).toEqual([40, 105]);
   });
 
   it("throws a clear error when no person is at the torso centre", () => {

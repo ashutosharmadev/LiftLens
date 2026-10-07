@@ -25,6 +25,16 @@ export const LANDMARK = {
 /** The waist sits this far down from the shoulder line to the hip line. */
 export const WAIST_FRACTION = 0.65;
 
+/**
+ * Plausible range for outer shoulder width / shoulder joint width.
+ * Good front photos measured 1.39–1.49. Wider usually means raised or spread
+ * arms joined the outline; narrower means the walk stopped at a gap.
+ */
+export const SHOULDER_EDGE_TO_JOINT_MIN = 1.1;
+export const SHOULDER_EDGE_TO_JOINT_MAX = 1.8;
+
+export type ShoulderCheck = "ok" | "too_wide" | "too_narrow";
+
 export interface TorsoPoints {
   leftShoulder: Point;
   rightShoulder: Point;
@@ -32,18 +42,28 @@ export interface TorsoPoints {
   rightHip: Point;
 }
 
-export interface WaistEdges {
+export interface BodyEdges {
   left: number;
   right: number;
 }
 
 export interface FrontMeasurements {
+  /** Outer shoulder width: edge to edge of the body outline at the shoulder line. */
   shoulderWidthPx: number;
+  /** Distance between the two shoulder joint landmarks. */
+  shoulderJointWidthPx: number;
+  shoulderY: number;
+  shoulderEdges: BodyEdges;
+  /** Whether outer shoulder width is plausible relative to joint width. */
+  shoulderCheck: ShoulderCheck;
+  /** Distance between the two hip joint landmarks. */
   hipWidthPx: number;
+  /** Joint to joint: shoulder joints / hip joints. */
   shoulderToHip: number;
   waistY: number;
-  waistEdges: WaistEdges;
+  waistEdges: BodyEdges;
   waistWidthPx: number;
+  /** Edge to edge: outer shoulder width / waist width. */
   shoulderToWaist: number;
 }
 
@@ -69,6 +89,11 @@ export function torsoPoints(landmarks: Landmark[], width: number, height: number
   };
 }
 
+/** Pixel row of the shoulder line, midway between the two shoulder joints. */
+export function shoulderRowY(points: TorsoPoints): number {
+  return Math.trunc((points.leftShoulder.y + points.rightShoulder.y) / 2);
+}
+
 /** Pixel row of the waist: WAIST_FRACTION of the way from shoulders to hips. */
 export function waistRowY(points: TorsoPoints): number {
   const shoulderMidY = (points.leftShoulder.y + points.rightShoulder.y) / 2;
@@ -87,11 +112,11 @@ export function torsoCenterX(points: TorsoPoints): number {
  * the person. Returns the outermost person pixels on each side, or null if
  * startX is not on the person. Stops at the first gap, e.g. between arm and torso.
  */
-export function findWaistEdges(
+export function findBodyEdges(
   row: ArrayLike<number>,
   startX: number,
   personValue: number,
-): WaistEdges | null {
+): BodyEdges | null {
   if (startX < 0 || startX >= row.length || row[startX] !== personValue) return null;
 
   let left = startX;
@@ -101,6 +126,13 @@ export function findWaistEdges(
   while (right < row.length - 1 && row[right + 1] === personValue) right++;
 
   return { left, right };
+}
+
+export function checkShoulder(edgeWidth: number, jointWidth: number): ShoulderCheck {
+  const ratio = edgeWidth / jointWidth;
+  if (ratio > SHOULDER_EDGE_TO_JOINT_MAX) return "too_wide";
+  if (ratio < SHOULDER_EDGE_TO_JOINT_MIN) return "too_narrow";
+  return "ok";
 }
 
 /**
@@ -115,21 +147,33 @@ export function measureFront(
   personValue: number,
 ): FrontMeasurements {
   const points = torsoPoints(landmarks, width, height);
-  const shoulderWidthPx = distance(points.leftShoulder, points.rightShoulder);
+  const centerX = torsoCenterX(points);
+  const shoulderJointWidthPx = distance(points.leftShoulder, points.rightShoulder);
   const hipWidthPx = distance(points.leftHip, points.rightHip);
 
+  const edgesAt = (y: number, what: string) => {
+    const edges = findBodyEdges(maskRowAt(y), centerX, personValue);
+    if (!edges) throw new Error(`No person pixels at the torso centre on the ${what} row (${y})`);
+    return edges;
+  };
+
+  // Both widths are edge to edge on the mask, so the ratio compares like with like.
+  const shoulderY = shoulderRowY(points);
+  const shoulderEdges = edgesAt(shoulderY, "shoulder");
+  const shoulderWidthPx = shoulderEdges.right - shoulderEdges.left;
+
   const waistY = waistRowY(points);
-  const waistEdges = findWaistEdges(maskRowAt(waistY), torsoCenterX(points), personValue);
-  if (!waistEdges) {
-    throw new Error(`No person pixels at the torso centre on row ${waistY}`);
-  }
-  // Same as the prototype: distance between the two edge pixels.
+  const waistEdges = edgesAt(waistY, "waist");
   const waistWidthPx = waistEdges.right - waistEdges.left;
 
   return {
     shoulderWidthPx,
+    shoulderJointWidthPx,
+    shoulderY,
+    shoulderEdges,
+    shoulderCheck: checkShoulder(shoulderWidthPx, shoulderJointWidthPx),
     hipWidthPx,
-    shoulderToHip: shoulderWidthPx / hipWidthPx,
+    shoulderToHip: shoulderJointWidthPx / hipWidthPx,
     waistY,
     waistEdges,
     waistWidthPx,

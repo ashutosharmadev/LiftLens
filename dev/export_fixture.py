@@ -1,7 +1,8 @@
 """Export reference numbers for the TypeScript measurement port.
 
-For each photo in dev/fixtures/, run the prototype's logic (dev/landmark_test.py)
-and save landmarks, the waist mask row and the resulting measurements to
+For each photo in dev/fixtures/, run the measurement logic (based on
+dev/landmark_test.py, with shoulders measured edge to edge like the waist)
+and save landmarks, the shoulder and waist mask rows and the resulting measurements to
 dev/fixtures/<name>.parity.json. frontend/src/measure/maths.parity.test.ts
 feeds the same inputs into maths.ts and checks the numbers match.
 
@@ -58,7 +59,7 @@ def export(image_path, landmarker, segmenter):
     rs = to_px(landmarks[RIGHT_SHOULDER], w, h)
     lh = to_px(landmarks[LEFT_HIP], w, h)
     rh = to_px(landmarks[RIGHT_HIP], w, h)
-    shoulder_width = distance(ls, rs)
+    shoulder_joint_width = distance(ls, rs)
     hip_width = distance(lh, rh)
 
     # The mask may come back as (h, w, 1); drop the channel axis.
@@ -71,6 +72,12 @@ def export(image_path, landmarker, segmenter):
     left, right = walk_edges(row, center_x)
     waist_width = right - left
 
+    # Outer shoulder width: same edge walk on the shoulder-line row.
+    shoulder_y = int(shoulder_mid_y)
+    shoulder_row = mask[shoulder_y, :]
+    s_left, s_right = walk_edges(shoulder_row, center_x)
+    shoulder_width = s_right - s_left
+
     out = {
         "image": image_path.name,
         "width": w,
@@ -78,10 +85,15 @@ def export(image_path, landmarker, segmenter):
         "person_value": PERSON_VALUE,
         "landmarks": [{"x": lm.x, "y": lm.y, "visibility": lm.visibility} for lm in landmarks],
         "waist_mask_row": [int(v) for v in row],
+        "shoulder_mask_row": [int(v) for v in shoulder_row],
         "python": {
             "shoulder_width_px": shoulder_width,
+            "shoulder_joint_width_px": shoulder_joint_width,
+            "shoulder_y": shoulder_y,
+            "shoulder_left": s_left,
+            "shoulder_right": s_right,
             "hip_width_px": hip_width,
-            "shoulder_to_hip": shoulder_width / hip_width,
+            "shoulder_to_hip": shoulder_joint_width / hip_width,
             "waist_y": waist_y,
             "waist_left": left,
             "waist_right": right,
