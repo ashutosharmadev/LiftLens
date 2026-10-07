@@ -99,6 +99,8 @@ def export(image_path, landmarker, segmenter):
             "waist_right": right,
             "waist_width_px": waist_width,
             "shoulder_to_waist": shoulder_width / waist_width,
+            "shoulder_index": shoulder_width / hip_width,
+            "waist_index": waist_width / hip_width,
         },
     }
     out_path = FIXTURES / f"{image_path.stem}.parity.json"

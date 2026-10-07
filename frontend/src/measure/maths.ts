@@ -65,6 +65,13 @@ export interface FrontMeasurements {
   waistWidthPx: number;
   /** Edge to edge: outer shoulder width / waist width. */
   shoulderToWaist: number;
+  /**
+   * Widths divided by hip joint width. Hip bones don't change with training
+   * or diet, so these stay comparable between photos taken at different
+   * distances, unlike raw pixel widths.
+   */
+  shoulderIndex: number;
+  waistIndex: number;
 }
 
 export function toPx(landmark: Landmark, width: number, height: number): Point {
@@ -136,7 +143,8 @@ export function checkShoulder(edgeWidth: number, jointWidth: number): ShoulderCh
 }
 
 /**
- * Front-photo measurements in pixels.
+ * Front-photo measurements. Pixel widths depend on camera distance, so only
+ * the ratios and indexes are meaningful to show or compare (see ADR-004).
  * maskRowAt(y) returns row y of the segmentation mask.
  */
 export function measureFront(
@@ -178,5 +186,7 @@ export function measureFront(
     waistEdges,
     waistWidthPx,
     shoulderToWaist: shoulderWidthPx / waistWidthPx,
+    shoulderIndex: shoulderWidthPx / hipWidthPx,
+    waistIndex: waistWidthPx / hipWidthPx,
   };
 }

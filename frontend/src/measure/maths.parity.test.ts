@@ -27,6 +27,8 @@ interface ParityFixture {
     waist_right: number;
     waist_width_px: number;
     shoulder_to_waist: number;
+    shoulder_index: number;
+    waist_index: number;
   };
 }
 
@@ -70,6 +72,8 @@ describe.skipIf(files.length === 0)("parity with the Python reference", () => {
       expectWithin(result.waistWidthPx, py.waist_width_px);
       expectWithin(result.shoulderToHip, py.shoulder_to_hip);
       expectWithin(result.shoulderToWaist, py.shoulder_to_waist);
+      expectWithin(result.shoulderIndex, py.shoulder_index);
+      expectWithin(result.waistIndex, py.waist_index);
     });
   }
 });

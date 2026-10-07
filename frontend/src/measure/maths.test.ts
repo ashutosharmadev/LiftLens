@@ -120,6 +120,26 @@ describe("measureFront", () => {
     expect(result.shoulderToHip).toBeCloseTo(2);
   });
 
+  it("normalises widths by hip joint width", () => {
+    const result = measureFront(BODY, 100, 200, maskRowAt, P);
+    expect(result.shoulderIndex).toBeCloseTo(56 / 20);
+    expect(result.waistIndex).toBeCloseTo(40 / 20);
+  });
+
+  it("gives the same indexes when the photo is taken from twice as far", () => {
+    // Twice the distance: same normalised landmarks in an image twice as big
+    // is equivalent to every pixel width halving; build that directly.
+    const near = measureFront(BODY, 100, 200, maskRowAt, P);
+    const half = (from: number, to: number) =>
+      Array.from({ length: 50 }, (_, x) => (x >= from && x <= to ? P : B));
+    const farRows: Record<number, number[]> = { 20: half(11, 39), 52: half(15, 35) };
+    const far = measureFront(BODY, 50, 100, (y) => farRows[y] ?? half(0, -1), P);
+
+    expect(far.waistWidthPx).toBeCloseTo(near.waistWidthPx / 2);
+    expect(far.waistIndex).toBeCloseTo(near.waistIndex);
+    expect(far.shoulderIndex).toBeCloseTo(near.shoulderIndex);
+  });
+
   it("flags a too-wide shoulder outline without failing", () => {
     const wide: Record<number, number[]> = { ...rows, 40: span(0, 99) }; // arms raised into the outline
     const result = measureFront(BODY, 100, 200, (y) => wide[y] ?? span(0, -1), P);
