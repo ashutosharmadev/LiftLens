@@ -10,7 +10,7 @@
 ## Later
 - [ ] When the Lambda concurrency quota increase is approved: add reserved concurrency (kill switch, API) and close the ADR exception
 - [ ] ADR (later): move the app into a separate member AWS account (SCPs apply there; keeps management account empty)
-- [ ] ADR-002: pose extraction in browser (MediaPipe JS) vs container-image Lambda
+- [x] ADR-002: pose extraction in browser (MediaPipe JS) vs container-image Lambda
 - [ ] Update docs/ to the serverless architecture
 - [ ] M5: replace the AdministratorAccess permission set with a custom least-privilege set built from the actions Terraform actually used (CloudTrail)
 - [ ] Find end-sem exam dates and shift milestones
