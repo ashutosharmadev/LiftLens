@@ -1,3 +1,5 @@
+> **Superseded.** This document describes the original FastAPI/PostgreSQL design. LiftLens is now serverless ([ADR-001](adr/001-serverless-terraform.md)); see the [root README](../README.md). This file will be updated or removed in M6.
+
 # LiftLens — Backend Architecture
 
 Stack: **Python 3.12, FastAPI, SQLAlchemy 2.0, Pydantic v2, Celery + Redis, PostgreSQL.**

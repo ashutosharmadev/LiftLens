@@ -1,3 +1,5 @@
+> **Superseded.** This document describes the original FastAPI/PostgreSQL design. LiftLens is now serverless ([ADR-001](adr/001-serverless-terraform.md)); see the [root README](../README.md). This file will be updated or removed in M6.
+
 # LiftLens — Measurement Engine
 
 This is the highest-risk, highest-value component in the system. Get this wrong and every
