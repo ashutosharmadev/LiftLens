@@ -8,6 +8,7 @@
 - [x] M0.6 ADR-001: Serverless + Terraform (vs FastAPI/Postgres and vs the CDK scaffold)
 
 ## Later
+- [ ] Calibrate the scoring noise threshold: ~5 front photos in one session, set NOISE_THRESHOLD to about 2x the spread (docs/scoring.md)
 - [ ] When the Lambda concurrency quota increase is approved: add reserved concurrency (kill switch, API) and close the ADR exception
 - [ ] ADR (later): move the app into a separate member AWS account (SCPs apply there; keeps management account empty)
 - [x] ADR-002: pose extraction in browser (MediaPipe JS) vs container-image Lambda
