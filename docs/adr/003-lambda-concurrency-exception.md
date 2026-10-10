@@ -3,24 +3,38 @@
 - Status: Accepted (temporary)
 - Date: 2026-10-05
 
-## Context
+## Scenario
 
-The project rule is that every Lambda sets reserved concurrency (default 2), so no single function can run away and so the kill switch always has capacity.
+The project rule is that every Lambda sets reserved concurrency (default 2), so no single function can run away and the kill switch always has capacity to run.
 
-This account's Lambda quota is **10 concurrent executions**, and AWS requires at least 10 to stay unreserved. With a quota of 10, no function can reserve any concurrency: setting it fails. Setting a function to **0** is still allowed, which is what the kill switch relies on.
+## Obstacle
+
+This account's Lambda quota is **10 concurrent executions**, and AWS requires at least 10 to stay unreserved. With a quota of 10, no function can reserve any concurrency: setting it fails. (Setting a function to **0**, which is what the kill switch does, is still allowed.)
 
 Consequences of the low quota:
 
-- The whole account can run at most 10 Lambda invocations at once. Extra requests are throttled, not queued, and throttled requests cost nothing. This acts as an account-wide cap on Lambda spend.
-- All functions share those 10 slots. A flood of API traffic could briefly crowd out the kill switch. SNS delivers to Lambda asynchronously and Lambda retries throttled async events, so the kill switch is delayed rather than lost.
+- The whole account can run at most 10 Lambda invocations at once. Extra requests are throttled, not queued, and throttled requests cost nothing.
+- All functions share those 10 slots. A flood of API traffic could briefly crowd out the kill switch.
 
-## Decision
+## Action
 
 1. Request a quota increase to 1,000 concurrent executions (Service Quotas, free).
 2. Until it is approved, deploy Lambdas **without** reserved concurrency. The account quota of 10 is the interim cap.
 3. When the increase is approved, give every Lambda reserved concurrency (kill switch and API at 2) and mark this ADR superseded.
 
-## Alternatives considered
+Alternatives considered:
 
 - **Wait for the quota increase before building.** Safest, but approval can take days and may be refused for new accounts.
-- **Build without reservations and leave it.** Leaves the kill switch exposed to being crowded out with no plan to fix it.
+- **Build without reservations and leave it.** Leaves the kill switch exposed to being crowded out, with no plan to fix it.
+
+## Result
+
+- Guardrails were deployed and tested on schedule.
+- The quota of 10 acts as a free account-wide cap on Lambda spend in the meantime.
+- Residual risk: the kill switch could be delayed (not lost) under heavy API traffic. SNS delivers to Lambda asynchronously and Lambda retries throttled async events.
+- Follow-up tracked in BACKLOG.md.
+
+## Troubleshooting
+
+- **How it was found.** Before writing the kill switch, a read-only `aws lambda get-account-settings` check returned `ConcurrentExecutions: 10` and `UnreservedConcurrentExecutions: 10`. Checking the quota first avoided a failed `terraform apply` on the reserved-concurrency setting.
+- **Lesson:** check account quotas before designing around a limit that new accounts may not have.
