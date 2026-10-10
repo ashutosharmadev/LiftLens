@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import { Lock, MoveHorizontal, PersonStanding, Repeat, Smartphone, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { createBeeper, type Beeper } from '../capture/beep'
 import { BodyOutline } from '../capture/BodyOutline'
@@ -8,11 +9,12 @@ import { cameraOn, COUNTDOWN_SECONDS, initialPhase, next, PROBLEM_MESSAGE, type 
 import { fileToCanvas, frameToCanvas } from '../capture/photo'
 import { Button, Notice, Viewfinder } from '../ui/kit'
 
-const TIPS = [
-  'Stand your phone upright at chest height, against something steady, not leaning back.',
-  'Step back about 2 m so you fit inside the outline, head to mid-thigh.',
-  'Face the camera with your arms slightly away from your body.',
-  'Use the same clothes, light and spot as last time.',
+// The setup tips. The first is the only guard against a tilted phone, so keep it.
+const TIPS: { icon: LucideIcon; text: string }[] = [
+  { icon: Smartphone, text: 'Phone upright at chest height' },
+  { icon: MoveHorizontal, text: 'Step back about 2 m' },
+  { icon: PersonStanding, text: 'Face the camera, arms slightly out' },
+  { icon: Repeat, text: 'Same clothes, light and spot each time' },
 ]
 
 /** Guided check-in photo: propped phone, front camera, body outline, 10 s countdown. */
@@ -113,12 +115,11 @@ export function CheckIn() {
       <main>
         <Viewfinder className="bg-graphite-900">
           <h1 className="text-2xl font-semibold">New check-in</h1>
-          <p className="mt-2 text-sm text-graphite-300">Your photo stays on this device. Only the measurements are saved.</p>
-          <ol className="mt-6 space-y-3">
-            {TIPS.map((tip, i) => (
-              <li key={tip} className="flex gap-3 text-sm text-graphite-100">
-                <span className="font-mono text-signal">{String(i + 1).padStart(2, '0')}</span>
-                <span>{tip}</span>
+          <ol className="mt-6 grid grid-cols-2 gap-3">
+            {TIPS.map(({ icon: Icon, text }) => (
+              <li key={text} className="rounded-md border border-graphite-800 bg-graphite-950 p-4">
+                <Icon aria-hidden className="size-6 text-signal" strokeWidth={1.75} />
+                <p className="mt-3 text-sm leading-snug text-graphite-100">{text}</p>
               </li>
             ))}
           </ol>
@@ -136,6 +137,10 @@ export function CheckIn() {
               <input type="file" accept="image/*" onChange={onUpload} className="sr-only" />
             </label>
           </div>
+          <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-graphite-500">
+            <Lock aria-hidden className="size-3.5" />
+            Your photo stays on this device
+          </p>
           <Link to="/history" className="mt-6 inline-block text-sm text-graphite-300 hover:text-graphite-100">
             Back to history
           </Link>
