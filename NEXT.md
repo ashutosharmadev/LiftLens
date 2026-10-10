@@ -1,13 +1,13 @@
 # Next session — ONE task
 
-**M3 — Design the browser app's flow and sign-in**
-Decide how the React app moves through sign in → capture/upload → pose overlay preview → measurements + score explanation → save → history chart, and how it signs in with Cognito (library and SRP). Design first; then build the sign-in screen against the live user pool.
+**M3 step 2 — Guided capture**
+Build the check-in camera: live viewfinder with a body guide and countdown, plus "upload a photo instead". The photo stays on the device; the camera stops as soon as the photo is taken. Design first: how does someone alone take a standardized front photo?
 
-Also open from M2:
-- Decide whether to keep USER_PASSWORD_AUTH on the app client once the browser uses SRP (BACKLOG).
-- Confirm models.ts works in a real browser and that the segmenter's person value is 0.
+Still open:
+- Change the Cognito password (it appeared in a screenshot during M2's smoke test).
+- Confirm models.ts works in a real browser and that the segmenter's person value is 0 (step 3).
 
-Done when: the flow and sign-in approach are agreed and you can sign in to the local app with your LiftLens account.
+Done when: you can take or upload a photo in the local app and see it framed, ready for measuring.
 
 ## End of every milestone
 - Update README.md: status table, architecture diagram (solid = built, dashed = planned), key decisions.
