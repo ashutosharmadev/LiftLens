@@ -8,9 +8,11 @@
 - [x] M0.6 ADR-001: Serverless + Terraform (vs FastAPI/Postgres and vs the CDK scaffold)
 
 ## Later
+- [ ] M3: once the browser signs in with SRP, decide whether to keep USER_PASSWORD_AUTH on the app client (currently there for CLI smoke tests)
+- [ ] Consider lowering the API Lambda to 128 MB (peak use 110 MB) after M3 load is known
 - [ ] Steadier ruler for the indexes (combine joints and torso length, or median of 3 photos); recompute history from stored pixel ingredients
 - [ ] Calibrate the scoring noise threshold: ~5 front photos in one session, set NOISE_THRESHOLD to about 2x the spread (docs/scoring.md)
-- [ ] When the Lambda concurrency quota increase is approved: add reserved concurrency (kill switch, API) and close the ADR exception
+- [x] When the Lambda concurrency quota increase is approved: add reserved concurrency (kill switch, API) and close the ADR exception
 - [ ] ADR (later): move the app into a separate member AWS account (SCPs apply there; keeps management account empty)
 - [x] ADR-002: pose extraction in browser (MediaPipe JS) vs container-image Lambda
 - [ ] Update docs/ to the serverless architecture

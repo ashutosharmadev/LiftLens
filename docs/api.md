@@ -22,7 +22,7 @@ Every request needs `Authorization: Bearer <Cognito ID token>`. The Lambda verif
 
 ## Data model
 
-DynamoDB table, on-demand billing. One item per measurement.
+DynamoDB table `liftlens-measurements`, provisioned at 5 reads and 5 writes per second inside the free tier ([ADR-006](adr/006-protected-data-stack.md)). One item per measurement.
 
 | Attribute | Type | Key | Meaning |
 |---|---|---|---|
@@ -157,4 +157,5 @@ Formulas and wording are in [scoring.md](scoring.md).
 | 404 | Any path other than `/api/measurements` |
 | 405 | Any method other than `GET` or `POST` |
 | 413 | Body larger than 2 KB |
+| 503 | The table's free-tier capacity is momentarily exceeded; try again ([ADR-006](adr/006-protected-data-stack.md)) |
 | 500 | Unexpected error (details only in the Lambda's logs) |

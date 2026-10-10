@@ -20,8 +20,8 @@ Progress photos are compared by eye, and lighting, camera distance, posture and 
 |---|---|---|
 | M0 Guardrails | ✅ | Budget alerts, budget action, kill switch, deployed and tested |
 | M1 Measurement engine | ✅ | Browser measurement (TypeScript) matching the Python prototype; scoring module |
-| M2 Auth, API, data | ⏳ | Next |
-| M3 Frontend | | Capture, preview, results, history chart |
+| M2 Auth, API, data | ✅ | Cognito sign-up, DynamoDB, measurements API live and smoke-tested |
+| M3 Frontend | ⏳ | Next: capture, preview, results, history chart |
 | M4 Deploy | | S3 + CloudFront |
 | M5 CI/CD | | GitHub Actions with OIDC |
 | M6 Portfolio finish | | Screenshots, cost write-up |
@@ -39,21 +39,23 @@ flowchart LR
 
     subgraph AWS["AWS ap-south-1"]
         CF["CloudFront + S3<br/>web app"]
-        Cognito["Cognito<br/>sign-in"]
-        API["API Lambda<br/>validate + score.py"]
-        DB[("DynamoDB<br/>measurement history")]
+        API["API Lambda<br/>token check, validate, score.py"]
+        subgraph Data["Protected data stack"]
+            Cognito["Cognito<br/>sign-up, sign-in"]
+            DB[("DynamoDB<br/>measurement history")]
+        end
     end
 
     Maths -. "numbers only" .-> CF
     CF -. "/api/*" .-> API
-    API -.-> DB
-    Device -.-> Cognito
+    API --> DB
+    API -- "verifies tokens" --> Cognito
 
-    class CF,Cognito,API,DB planned
+    class CF planned
     classDef planned stroke-dasharray: 5 5
 ```
 
-`score.py` itself is built and tested; the Lambda that runs it is planned.
+The API and data are live; the browser app and CloudFront are next. Until CloudFront exists (M4), the API is reached directly at its Function URL.
 
 ### Cost guardrails
 
@@ -79,9 +81,10 @@ The kill switch finds app resources by tag (`Project=LiftLens`, `Stack=app`), so
 |---|---|---|
 | [001](docs/adr/001-serverless-terraform.md) | Serverless on AWS, managed with Terraform | Always-on servers and databases bill by the hour; Terraform shows exactly what will change before anything is created |
 | [002](docs/adr/002-pose-extraction-in-browser.md) | Pose detection runs in the browser | Physique photos are highly sensitive; if LiftLens never receives them there is nothing to leak |
-| [003](docs/adr/003-lambda-concurrency-exception.md) | No reserved Lambda concurrency yet | The account's limit of 10 allows none; a quota increase is requested |
+| [003](docs/adr/003-lambda-concurrency-exception.md) | No reserved Lambda concurrency (superseded) | The account's limit of 10 allowed none; now raised, and reservations are set |
 | [004](docs/adr/004-scale-free-measurements.md) | Measurements are scale-free | Shoulders and waist are both measured edge to edge, and a photo shows shape, not size, so LiftLens reports ratios instead of centimetres |
 | [005](docs/adr/005-store-ingredients-recompute-scores.md) | Store measurement ingredients, recompute scores | Photos are gone after each check-in, so saving the raw numbers lets better formulas apply to the whole history |
+| [006](docs/adr/006-protected-data-stack.md) | Protected data stack, DynamoDB inside the free tier | `terraform destroy` on the app must never remove user data or accounts; provisioned capacity is guaranteed $0 and caps cost |
 
 ## Repository layout
 
@@ -92,7 +95,8 @@ The kill switch finds app resources by tag (`Project=LiftLens`, `Stack=app`), so
 | `backend/scoring/` | Explainable scoring (Python) |
 | `backend/kill_switch/` | Cost kill-switch Lambda |
 | `infra/guardrails/` | Terraform: budget, budget action, deploy role, kill switch (deployed) |
-| `infra/app/` | Terraform: application stack (from M2) |
+| `infra/data/` | Terraform: measurement table and user pool, deletion-protected (deployed) |
+| `infra/app/` | Terraform: API Lambda and Function URL via `modules/api` (deployed) |
 | `dev/` | Python prototype and the script that exports reference numbers for tests |
 | `docs/` | ADRs, [API contract](docs/api.md) and [scoring](docs/scoring.md) |
 
@@ -124,7 +128,15 @@ AWS_PROFILE=liftlens terraform plan -out=guardrails.tfplan   # review every reso
 AWS_PROFILE=liftlens terraform apply guardrails.tfplan
 ```
 
-The guardrails stack is always applied with the SSO admin profile so it stays fixable while the deploy role is locked. The app stack will be deployed with the `liftlens-deploy` role from M2.
+The guardrails stack is always applied with the SSO admin profile so it stays fixable while the deploy role is locked. The data and app stacks are applied with the `liftlens-deploy` role, data first:
+
+```sh
+backend/api/build.sh                                   # package the API for Lambda (Linux arm64)
+AWS_PROFILE=liftlens-deploy terraform -chdir=infra/data plan -out=data.tfplan
+AWS_PROFILE=liftlens-deploy terraform -chdir=infra/data apply data.tfplan
+AWS_PROFILE=liftlens-deploy terraform -chdir=infra/app plan -out=app.tfplan
+AWS_PROFILE=liftlens-deploy terraform -chdir=infra/app apply app.tfplan
+```
 
 ## Cost
 
