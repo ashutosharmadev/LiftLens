@@ -1,0 +1,75 @@
+"""Validation of the POST /api/measurements body. See docs/api.md."""
+
+import json
+from dataclasses import dataclass
+from math import isfinite
+
+from errors import ApiError
+from score import MAX_RATIO, MIN_RATIO
+
+MAX_BODY_BYTES = 2048
+MIN_PX = 1
+MAX_PX = 10_000
+PIXEL_FIELDS = ("shoulderEdgePx", "waistEdgePx", "shoulderJointPx", "hipJointPx", "torsoLengthPx")
+KNOWN_METHOD_VERSIONS = {"2026-10-edge-v1"}
+
+
+@dataclass(frozen=True)
+class Ingredients:
+    shoulder_edge_px: float
+    waist_edge_px: float
+    shoulder_joint_px: float
+    hip_joint_px: float
+    torso_length_px: float
+    method_version: str
+
+
+def parse_body(raw: str | None) -> Ingredients:
+    if raw is None or raw == "":
+        raise ApiError(400, "Body is required")
+    if len(raw.encode("utf-8")) > MAX_BODY_BYTES:
+        raise ApiError(413, f"Body must be at most {MAX_BODY_BYTES} bytes")
+
+    try:
+        body = json.loads(raw)
+    except ValueError:
+        raise ApiError(400, "Body must be valid JSON")
+    if not isinstance(body, dict):
+        raise ApiError(400, "Body must be a JSON object")
+
+    expected = set(PIXEL_FIELDS) | {"methodVersion"}
+    unknown = sorted(set(body) - expected)
+    if unknown:
+        raise ApiError(400, f"Unknown field: {unknown[0]}")
+    missing = [name for name in (*PIXEL_FIELDS, "methodVersion") if name not in body]
+    if missing:
+        raise ApiError(400, f"Missing field: {missing[0]}")
+
+    pixels = {}
+    for name in PIXEL_FIELDS:
+        value = body[name]
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not isfinite(value)
+            or not MIN_PX <= value <= MAX_PX
+        ):
+            raise ApiError(400, f"{name} must be a number between {MIN_PX} and {MAX_PX}")
+        pixels[name] = float(value)
+
+    version = body["methodVersion"]
+    if not isinstance(version, str) or version not in KNOWN_METHOD_VERSIONS:
+        raise ApiError(400, "methodVersion is not a known version")
+
+    ratio = pixels["shoulderEdgePx"] / pixels["waistEdgePx"]
+    if not MIN_RATIO <= ratio <= MAX_RATIO:
+        raise ApiError(400, f"shoulderEdgePx ÷ waistEdgePx must be between {MIN_RATIO} and {MAX_RATIO}")
+
+    return Ingredients(
+        shoulder_edge_px=pixels["shoulderEdgePx"],
+        waist_edge_px=pixels["waistEdgePx"],
+        shoulder_joint_px=pixels["shoulderJointPx"],
+        hip_joint_px=pixels["hipJointPx"],
+        torso_length_px=pixels["torsoLengthPx"],
+        method_version=version,
+    )
