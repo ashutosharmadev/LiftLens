@@ -2,7 +2,7 @@
 
 Scenario, Obstacle, Action, Result, Troubleshooting. This is how LiftLens was planned and built, the decisions behind it, and what went wrong along the way. The detailed reasoning for each decision is in the [ADRs](adr/).
 
-**Status:** in progress. Cost guardrails (M0) and the measurement engine (M1) are done; the API is built and tested locally and is next to be deployed (M2).
+**Status:** in progress. Cost guardrails (M0), the measurement engine (M1) and the backend (M2: sign-up, data and API, live in AWS) are done; the browser app (M3) is next.
 
 ---
 
@@ -70,7 +70,15 @@ My first instinct was to run the pose model in a Lambda. When I weighed it prope
 - Token verification uses a standard library (PyJWT) against Cognito's public keys, cached between requests, with no network call per request.
 - Everything that talks to the outside world (keys, clock, database) sits behind small interfaces, so tests run the real logic with fakes.
 
-### 7. Documented as I went
+### 7. Deployed the backend with user data protected ([ADR-006](adr/006-protected-data-stack.md))
+
+- Put the measurement table **and the user pool** in their own Terraform stack with deletion protection, so tearing down the app can never delete user data. The pool had to move too: each measurement is keyed by the user's Cognito ID, and recreating the pool would issue everyone a new one, orphaning their history.
+- Chose **provisioned** DynamoDB capacity inside the free tier instead of on-demand: guaranteed $0, and requests over capacity are throttled rather than billed.
+- Opened sign-up to anyone, but only with a **verified email**, so nobody can register an address they don't own.
+- Kept the API's address public for now: the token check protects the data, and a reserved concurrency of 2 caps the cost of junk requests.
+- Packaged the API's crypto library for Lambda's Linux on arm64, not for my Mac, and smoke-tested the live API: sign-up, email code, token, a saved measurement and the history read back.
+
+### 8. Documented as I went
 
 Five ADRs, an API contract, a scoring document and a README with architecture diagrams that mark what's built and what's planned.
 
@@ -82,8 +90,9 @@ Five ADRs, an API contract, a scoring document and a README with architecture di
   - The TypeScript engine matches the Python reference within 1% on real photos.
   - Two photos of the same body gave shoulder-to-waist ratios of **1.784 and 1.785**.
   - Every score shows its formula, its inputs and a one-sentence explanation.
-- **Tested:** 21 TypeScript tests and 89 Python tests. The security tests include forged signatures, an edited user ID and expired tokens, and every validation rule in the API contract has a test.
-- **Decisions on record:** five ADRs, each with the alternatives I rejected and why.
+- **Tested:** 21 TypeScript tests and 92 Python tests. The security tests include forged signatures, an edited user ID and expired tokens, and every validation rule in the API contract has a test.
+- **Live backend:** a stranger can sign up with a verified email, save a measurement and read their history. The stored item holds exactly the ten designed fields: no photo, no email, no score. After the first (cold) request of about 1.5–2 seconds, requests take 1–19 ms.
+- **Decisions on record:** six ADRs, each with the alternatives I rejected and why.
 
 ## T: Troubleshooting
 
@@ -115,6 +124,17 @@ Each entry gives the problem, its root cause, the fix, and what I took away from
 - *Fix:* confirmed the state contained no real resources, re-ran the plan, checked it was identical (15 to add, 0 to change, 0 to destroy), and approved it again before applying.
 - *Lesson:* Terraform ties a saved plan to the exact state it was made from. That's a safety feature, and any approval should cover the plan that actually runs.
 
+**"DynamoDB on-demand" wasn't free after all.**
+- *Problem:* the plan, and the project's own rules, said to use DynamoDB on-demand as a free service.
+- *Cause:* checking the pricing page before adding the table (a project rule) showed the always-free tier covers *provisioned* capacity only; on-demand requests are billed from the first one.
+- *Fix:* switched to provisioned capacity of 5 reads and 5 writes per second, inside the free 25/25, and updated the rule ([ADR-006](adr/006-protected-data-stack.md)).
+- *Lesson:* "serverless" doesn't automatically mean "free"; check each service's free-tier terms.
+
+**The Lambda limit was raised, which changed the cost picture.**
+- *Problem:* reserved concurrency had been impossible with a limit of 10 ([ADR-003](adr/003-lambda-concurrency-exception.md)).
+- *Cause:* the limit was raised to 400, so reservations became possible, but the account-wide cap of 10 that had been limiting spend disappeared with it.
+- *Fix:* reserved 2 for the kill switch (so it can always run) and 2 for the API (now the real cap on how fast junk requests can spend).
+
 ### Local tooling
 
 **The AWS CLI wouldn't install.**
@@ -127,6 +147,16 @@ Each entry gives the problem, its root cause, the fix, and what I took away from
 - *Problem:* `aws configure sso` warned about a "legacy format".
 - *Cause:* the session-name prompt had been left empty.
 - *Fix:* cancelled and re-ran it with a session name, so the CLI can refresh sign-ins automatically.
+
+**A shell command did nothing in zsh.**
+- *Problem:* during the smoke test, sign-up failed with "Invalid length for parameter Username, value: 0".
+- *Cause:* `read -p "Email: " EMAIL` is bash syntax; in zsh (the macOS default), `-p` reads from a coprocess, so the variable stayed empty.
+- *Fix:* the zsh form `read "EMAIL?Email: "`.
+- *Lesson:* commands that work in one shell can silently do nothing in another; check which shell you're in.
+
+**The CLI couldn't sign in the secure way.**
+- *Problem:* the app client allowed only SRP sign-in (the password is never sent), which the AWS CLI can't perform, so a smoke test couldn't get a token.
+- *Fix:* also allowed `USER_PASSWORD_AUTH`, where the password goes over HTTPS to Cognito only, never to the API, with a backlog task to review it once the browser signs in with SRP.
 
 ### Code and tests
 
@@ -147,12 +177,23 @@ Each entry gives the problem, its root cause, the fix, and what I took away from
 - *Fix:* the tests now mint tokens relative to the fake clock's current time.
 - *Lesson:* a failing test can be proof that the code works. Read the failure before changing the code.
 
+**The password policy rejected a short password.**
+- *Problem:* the first sign-up attempt failed with "Password not long enough".
+- *Cause:* the policy requires at least 12 characters with upper case, lower case and a number; the password typed didn't meet it.
+- *Fix:* generated a random 23-character password locally with `openssl rand`, so it never had to be typed or shown anywhere else. A rejected weak password is the policy working as intended.
+
 ### Design problems found by testing
 
 **The headline ratio compared two different things.**
 - *Problem:* while porting the prototype, I noticed shoulders were measured joint to joint and the waist edge to edge.
 - *Fix:* measured both edge to edge and added the plausibility check, then updated the Python reference so the parity test checks the new method ([ADR-004](adr/004-scale-free-measurements.md)).
 - *Lesson:* port faithfully first, then change the logic as a separate, visible step, so porting bugs and design changes can't be confused.
+
+**The user pool would have orphaned everyone's history.**
+- *Problem:* the first data-protection design moved only the table out of the app stack.
+- *Cause:* `userId` is the Cognito `sub`. If the user pool were destroyed with the app and recreated, every user would get a new `sub`, and the protected table would hold history nobody could reach.
+- *Fix:* the user pool moved into the protected data stack with deletion protection ([ADR-006](adr/006-protected-data-stack.md)).
+- *Lesson:* protecting data means protecting whatever its keys point to.
 
 **The "ruler" was noisier than I estimated.**
 - *Problem:* I first assumed hip-normalised widths would vary about 3% between photos.
