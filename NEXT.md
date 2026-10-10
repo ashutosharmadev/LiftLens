@@ -1,13 +1,14 @@
 # Next session — ONE task
 
-**M3 step 2 — Guided capture**
-Build the check-in camera: live viewfinder with a body guide and countdown, plus "upload a photo instead". The photo stays on the device; the camera stops as soon as the photo is taken. Design first: how does someone alone take a standardized front photo?
+**M3 step 3 — Measure the photo**
+Run the pose and segmentation models on the check-in photo in the browser, turn the result into the measurement ingredients, and show the shoulder-to-waist result with an explicit Save that posts it to the API. A bad photo (nobody found, shoulders/hips missing, shoulderCheck flagged) shows what went wrong and offers a retake. Design first: what does the person see while the models load and run, and what counts as a photo too bad to save?
 
 Still open:
 - Change the Cognito password (it appeared in a screenshot during M2's smoke test).
-- Confirm models.ts works in a real browser and that the segmenter's person value is 0 (step 3).
+- Confirm models.ts works in a real browser and that the segmenter's person value is 0.
+- Confirm the camera light goes off as soon as the photo is taken.
 
-Done when: you can take or upload a photo in the local app and see it framed, ready for measuring.
+Done when: a photo taken in the local app is measured and saved, and the new result appears on History.
 
 ## End of every milestone
 - Update README.md: status table, architecture diagram (solid = built, dashed = planned), key decisions.
