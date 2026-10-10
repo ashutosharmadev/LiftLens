@@ -47,6 +47,7 @@ def call(deps, **kwargs):
 def test_post_saves_and_returns_the_first_photo_as_baseline(deps, store, make_token):
     status, body = call(deps, method="POST", token=make_token(), body=body_json())
     assert status == 201
+    assert body["sinceLast"] is None
     assert body["measurement"]["isBaseline"] is True
     assert body["measurement"]["timestamp"] == "2026-10-10T09:30:00.000Z"
     assert body["score"]["status"] == "baseline"
@@ -63,6 +64,8 @@ def test_second_post_reports_progress(deps, clock, make_token):
     assert status == 201
     assert body["score"]["status"] == "increased"
     assert "rose 4.7%" in body["score"]["explanation"]
+    assert body["sinceLast"]["status"] == "increased"
+    assert "since your previous check-in" in body["sinceLast"]["explanation"]
 
 
 def test_get_returns_history_with_scores_oldest_first(deps, clock, make_token):
@@ -73,13 +76,15 @@ def test_get_returns_history_with_scores_oldest_first(deps, clock, make_token):
     assert status == 200
     assert [m["score"]["status"] for m in body["measurements"]] == ["flagged", "baseline"]
     assert body["baselineTimestamp"] == body["measurements"][1]["timestamp"]
+    assert [m["sinceLast"] for m in body["measurements"]] == [None, None]
+    assert body["noiseThreshold"] == 0.02
 
 
 def test_users_only_see_their_own_history(deps, make_token):
     call(deps, method="POST", token=make_token(sub="alice"), body=body_json())
     status, body = call(deps, token=make_token(sub="bob"))
     assert status == 200
-    assert body == {"baselineTimestamp": None, "measurements": []}
+    assert body == {"baselineTimestamp": None, "noiseThreshold": 0.02, "measurements": []}
 
 
 def test_base64_bodies_are_decoded(deps, make_token):

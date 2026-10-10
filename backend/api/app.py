@@ -14,7 +14,8 @@ from typing import Callable
 
 from auth import JwksCache, verify_token
 from errors import ApiError
-from measurements import build_card, public_card, score_dict, score_history
+from measurements import build_card, public_card, score_dict, score_history, since_previous
+from score import NOISE_THRESHOLD
 from store import DynamoStore, MeasurementStore
 from validation import parse_body
 
@@ -67,15 +68,35 @@ def _post(event: dict, user_id: str, deps: Deps) -> dict:
     card = build_card(user_id, _timestamp(deps.now()), ingredients)
     deps.store.put(card)
 
-    baseline, scored = score_history(deps.store.list_for_user(user_id))
+    cards = deps.store.list_for_user(user_id)
+    baseline, scored = score_history(cards)
     result = next(r for c, r in scored if c["timestamp"] == card["timestamp"])
-    return _response(201, {"measurement": public_card(card, baseline), "score": score_dict(result)})
+    since = since_previous(cards).get(card["timestamp"])
+    return _response(
+        201,
+        {
+            "measurement": public_card(card, baseline),
+            "score": score_dict(result),
+            "sinceLast": score_dict(since) if since else None,
+        },
+    )
 
 
 def _get(user_id: str, deps: Deps) -> dict:
-    baseline, scored = score_history(deps.store.list_for_user(user_id))
-    measurements = [{**public_card(card, baseline), "score": score_dict(result)} for card, result in scored]
-    return _response(200, {"baselineTimestamp": baseline, "measurements": measurements})
+    cards = deps.store.list_for_user(user_id)
+    baseline, scored = score_history(cards)
+    since = since_previous(cards)
+    measurements = [
+        {
+            **public_card(card, baseline),
+            "score": score_dict(result),
+            "sinceLast": score_dict(since[card["timestamp"]]) if card["timestamp"] in since else None,
+        }
+        for card, result in scored
+    ]
+    return _response(
+        200, {"baselineTimestamp": baseline, "noiseThreshold": NOISE_THRESHOLD, "measurements": measurements}
+    )
 
 
 def route(event: dict, deps: Deps) -> dict:

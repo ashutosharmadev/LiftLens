@@ -2,7 +2,7 @@
 
 from dataclasses import asdict
 
-from score import ScoreResult, flagged_result, progress_result, ratio_result
+from score import ScoreResult, flagged_result, progress_result, ratio_result, since_previous_result
 from validation import Ingredients
 
 # Same plausible range as SHOULDER_EDGE_TO_JOINT_MIN/MAX in frontend/src/measure/maths.ts.
@@ -51,6 +51,15 @@ def score_history(cards: list[dict]) -> tuple[str | None, list[tuple[dict, Score
         scored.append((card, result))
 
     return (baseline["timestamp"] if baseline else None), scored
+
+
+def since_previous(cards: list[dict]) -> dict[str, ScoreResult]:
+    """For each ok card after the first, its change since the previous ok card. Flagged cards are skipped."""
+    ok_cards = [card for card in sorted(cards, key=lambda card: card["timestamp"]) if card["shoulderCheck"] == "ok"]
+    return {
+        current["timestamp"]: since_previous_result(current["shoulderToWaist"], previous["shoulderToWaist"])
+        for previous, current in zip(ok_cards, ok_cards[1:])
+    }
 
 
 def public_card(card: dict, baseline_timestamp: str | None) -> dict:

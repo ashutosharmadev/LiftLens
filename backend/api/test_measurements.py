@@ -1,6 +1,6 @@
 import pytest
 
-from measurements import build_card, public_card, score_history, shoulder_check
+from measurements import build_card, public_card, score_history, shoulder_check, since_previous
 from validation import Ingredients
 
 
@@ -55,3 +55,12 @@ def test_public_card_never_includes_pixels():
     assert not any(key.endswith("Px") for key in shown)
     assert "userId" not in shown
     assert shown["isBaseline"] is True
+
+
+def test_since_previous_pairs_consecutive_ok_cards_and_skips_flagged():
+    changes = since_previous(
+        [card("2026-09-01", 1.70), card("2026-09-08", 2.1, "too_wide"), card("2026-09-15", 1.78)]
+    )
+    assert list(changes) == ["2026-09-15"]  # the baseline has no previous; the flagged card is skipped
+    assert changes["2026-09-15"].inputs["previous"] == 1.70
+    assert "since your previous check-in" in changes["2026-09-15"].explanation
