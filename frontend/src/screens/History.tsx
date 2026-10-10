@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router'
 import { getHistory, SignedOutError, type History as HistoryData, type HistoryItem } from '../api/client'
 import { apiDeps } from '../auth/session'
 import { BodyMap } from '../history/BodyMap'
-import { changeSinceLast, scoredItems, sinceLastHeadline } from '../history/trend'
+import { changeHeadline, latestSinceLast, scoredItems } from '../history/trend'
 import { TrendChart } from '../history/TrendChart'
 import { Button, Notice, Viewfinder } from '../ui/kit'
 
@@ -65,7 +65,10 @@ export function History() {
 
   const latest = data?.measurements.at(-1)
   const scored = data ? scoredItems(data.measurements) : []
-  const since = data ? changeSinceLast(data.measurements) : null
+  const since = data ? latestSinceLast(data.measurements) : null
+  // The ok check-in before the latest one, for the date range only; the change itself comes from the server.
+  const previous = since ? scored[scored.indexOf(since.item) - 1] : undefined
+  const noiseLabel = data ? `±${+(data.noiseThreshold * 100).toFixed(1)}%` : ''
   const baseline = data?.measurements.find((m) => m.isBaseline)?.shoulderToWaist ?? scored[0]?.shoulderToWaist
 
   return (
@@ -75,9 +78,17 @@ export function History() {
         <p className="mt-2 font-mono text-5xl font-medium text-signal">{latest ? latest.shoulderToWaist.toFixed(2) : '—'}</p>
         {since && (
           <p className="mt-3">
-            <span className="block font-mono text-base text-graphite-100">{sinceLastHeadline(since)}</span>
+            <span className="block font-mono text-base text-graphite-100">{changeHeadline(since.since)}</span>
             <span className="block text-xs text-graphite-500">
-              since last check-in · <span className="whitespace-nowrap">{shortDate(since.previous.timestamp)} → {shortDate(since.latest.timestamp)}</span>
+              since last check-in
+              {previous && (
+                <>
+                  {' · '}
+                  <span className="whitespace-nowrap">
+                    {shortDate(previous.timestamp)} → {shortDate(since.item.timestamp)}
+                  </span>
+                </>
+              )}
             </span>
           </p>
         )}
@@ -103,9 +114,9 @@ export function History() {
         <section className="rounded-md border border-graphite-800 bg-graphite-900 p-4 sm:p-6">
           <div className="mb-4 flex items-baseline justify-between">
             <h2 className="text-lg font-semibold">Trend</h2>
-            <span className="text-xs text-graphite-500">Shaded: ±2% noise around baseline</span>
+            <span className="text-xs text-graphite-500">Shaded: {noiseLabel} noise around baseline</span>
           </div>
-          <TrendChart items={scored} baseline={baseline} />
+          <TrendChart items={scored} baseline={baseline} noiseThreshold={data!.noiseThreshold} />
         </section>
       )}
 

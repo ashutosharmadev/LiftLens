@@ -23,10 +23,14 @@ export interface Measurement {
 
 export interface HistoryItem extends Measurement {
   score: Score
+  /** Change since the previous ok check-in, scored by the server; null for the first. */
+  sinceLast: Score | null
 }
 
 export interface History {
   baselineTimestamp: string | null
+  /** The server's noise threshold as a fraction (0.02 = ±2%). */
+  noiseThreshold: number
   measurements: HistoryItem[]
 }
 
@@ -92,7 +96,7 @@ export function getHistory(deps: ApiDeps): Promise<History> {
 export function saveMeasurement(
   deps: ApiDeps,
   ingredients: Ingredients,
-): Promise<{ measurement: Measurement; score: Score }> {
+): Promise<{ measurement: Measurement; score: Score; sinceLast: Score | null }> {
   return request(deps, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { HistoryItem } from '../api/client'
-import { formatPercent, NOISE_THRESHOLD } from './trend'
+import { formatPercent } from './trend'
 
 const STATUS_WORD: Record<HistoryItem['score']['status'], string> = {
   baseline: 'Baseline',
@@ -20,13 +20,22 @@ function shortDate(timestamp: string): string {
  * Lines are SVG stretched to the box; points are HTML buttons so they stay
  * round, can be tapped, and can be reached with the keyboard.
  */
-export function TrendChart({ items, baseline }: { items: HistoryItem[]; baseline: number }) {
+export function TrendChart({
+  items,
+  baseline,
+  noiseThreshold,
+}: {
+  items: HistoryItem[]
+  baseline: number
+  /** From the server (0.02 = ±2%), so the band always matches the score. */
+  noiseThreshold: number
+}) {
   const [active, setActive] = useState<number | null>(null)
 
   const times = items.map((i) => new Date(i.timestamp).getTime())
   const values = items.map((i) => i.shoulderToWaist)
-  const bandLow = baseline * (1 - NOISE_THRESHOLD)
-  const bandHigh = baseline * (1 + NOISE_THRESHOLD)
+  const bandLow = baseline * (1 - noiseThreshold)
+  const bandHigh = baseline * (1 + noiseThreshold)
   const low = Math.min(...values, bandLow)
   const high = Math.max(...values, bandHigh)
   const pad = (high - low) * 0.15
@@ -46,7 +55,7 @@ export function TrendChart({ items, baseline }: { items: HistoryItem[]; baseline
   const summary =
     `Shoulder-to-waist ratio over ${items.length} check-ins, from ${first.shoulderToWaist.toFixed(2)} on ${shortDate(first.timestamp)} ` +
     `to ${latest.shoulderToWaist.toFixed(2)} on ${shortDate(latest.timestamp)}. ` +
-    `The shaded band is ±${NOISE_THRESHOLD * 100}% around your baseline of ${baseline.toFixed(2)}.`
+    `The shaded band is ±${+(noiseThreshold * 100).toFixed(1)}% around your baseline of ${baseline.toFixed(2)}.`
 
   return (
     <figure>
@@ -105,7 +114,7 @@ export function TrendChart({ items, baseline }: { items: HistoryItem[]; baseline
             </button>
           ))}
 
-          {active !== null && <Tooltip point={points[active]} baseline={baseline} />}
+          {active !== null && <Tooltip point={points[active]} />}
         </div>
       </div>
       <div aria-hidden className="mt-2 flex justify-between pl-12 font-mono text-[11px] text-graphite-500">
@@ -116,7 +125,7 @@ export function TrendChart({ items, baseline }: { items: HistoryItem[]; baseline
   )
 }
 
-function Tooltip({ point, baseline }: { point: { item: HistoryItem; left: number; top: number }; baseline: number }) {
+function Tooltip({ point }: { point: { item: HistoryItem; left: number; top: number } }) {
   const { item } = point
   // Keep the tooltip inside the chart near the left and right edges.
   const align = point.left < 20 ? 'translate-x-0' : point.left > 80 ? '-translate-x-full' : '-translate-x-1/2'
@@ -132,7 +141,7 @@ function Tooltip({ point, baseline }: { point: { item: HistoryItem; left: number
       <p className="text-xs text-graphite-300">{shortDate(item.timestamp)}</p>
       <p className="font-mono text-base text-graphite-100">{item.shoulderToWaist.toFixed(2)}</p>
       <p className="text-xs text-graphite-300">
-        {item.isBaseline ? 'Baseline' : `${formatPercent(item.shoulderToWaist / baseline - 1)} vs baseline`}
+        {item.isBaseline ? 'Baseline' : `${formatPercent(item.score.value)} vs baseline`}
       </p>
     </div>
   )
