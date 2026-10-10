@@ -86,6 +86,7 @@ The kill switch finds app resources by tag (`Project=LiftLens`, `Stack=app`), so
 | Path | Contents |
 |---|---|
 | `frontend/` | React + TypeScript + Vite app; `src/measure/` is the measurement engine |
+| `backend/api/` | Measurements API Lambda: token check, validation, DynamoDB, scores ([contract](docs/api.md)) |
 | `backend/scoring/` | Explainable scoring (Python) |
 | `backend/kill_switch/` | Cost kill-switch Lambda |
 | `infra/guardrails/` | Terraform: budget, budget action, deploy role, kill switch (deployed) |
@@ -100,8 +101,9 @@ The kill switch finds app resources by tag (`Project=LiftLens`, `Stack=app`), so
 cd frontend && npm install && npm test
 
 # Scoring and kill switch (Python)
-python3 -m venv backend/.venv && backend/.venv/bin/pip install pytest boto3
+python3 -m venv backend/.venv && backend/.venv/bin/pip install pytest boto3 -r backend/api/requirements.txt
 cd backend/scoring && ../.venv/bin/python -m pytest
+cd ../api && ../.venv/bin/python -m pytest
 cd ../kill_switch && ../.venv/bin/python -m pytest
 ```
 

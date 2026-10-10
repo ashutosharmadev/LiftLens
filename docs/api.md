@@ -144,6 +144,7 @@ Formulas and wording are in [scoring.md](scoring.md).
 |---|---|
 | 400 | Invalid body (message names the field) |
 | 401 | Missing, invalid or expired token |
-| 405 | Any method or path other than the two above |
+| 404 | Any path other than `/api/measurements` |
+| 405 | Any method other than `GET` or `POST` |
 | 413 | Body larger than 2 KB |
 | 500 | Unexpected error (details only in the Lambda's logs) |
