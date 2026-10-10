@@ -29,6 +29,7 @@ LiftLens tracks this number; it does not judge it against an "ideal" value such 
 |---|---|---|
 | First photo | `ratio_result` | `shoulder_width / waist_width` |
 | Second photo on | `progress_result` | `(current - baseline) / baseline × 100`, where `baseline` is the first photo's ratio |
+| Flagged photo (shoulder check failed) | `flagged_result` | Not scored; shown greyed out and never used as the baseline |
 
 Every result returns:
 
@@ -36,7 +37,7 @@ Every result returns:
 |---|---|
 | `name` | What was scored |
 | `value` | The number, at full precision |
-| `status` | `baseline`, `increased`, `decreased` or `no_clear_change` |
+| `status` | `baseline`, `increased`, `decreased`, `no_clear_change` or `flagged` |
 | `formula` | The formula as text |
 | `inputs` | Every number that went into it, by name |
 | `explanation` | One plain-English sentence (numbers rounded for reading only) |
