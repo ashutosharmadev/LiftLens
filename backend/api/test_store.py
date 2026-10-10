@@ -1,5 +1,9 @@
 from decimal import Decimal
 
+import pytest
+from botocore.exceptions import ClientError
+
+from errors import ApiError
 from store import DynamoStore
 
 
@@ -44,3 +48,31 @@ def test_reads_every_page():
     for i in range(5):
         store.put({"userId": "u", "timestamp": f"t{i}", "shoulderToWaist": 1.7})
     assert [i["timestamp"] for i in store.list_for_user("u")] == ["t0", "t1", "t2", "t3", "t4"]
+
+
+class ThrottledTable(FakeTable):
+    def __init__(self, code):
+        super().__init__()
+        self.code = code
+
+    def put_item(self, Item):
+        raise ClientError({"Error": {"Code": self.code, "Message": "slow down"}}, "PutItem")
+
+    def query(self, **kwargs):
+        raise ClientError({"Error": {"Code": self.code, "Message": "slow down"}}, "Query")
+
+
+@pytest.mark.parametrize("code", ["ProvisionedThroughputExceededException", "ThrottlingException"])
+def test_throttling_becomes_503(code):
+    store = DynamoStore("t", FakeResource(ThrottledTable(code)))
+    with pytest.raises(ApiError) as err:
+        store.put({"userId": "u", "timestamp": "t1"})
+    assert err.value.status == 503
+    with pytest.raises(ApiError):
+        store.list_for_user("u")
+
+
+def test_other_errors_are_not_disguised_as_503():
+    store = DynamoStore("t", FakeResource(ThrottledTable("AccessDeniedException")))
+    with pytest.raises(ClientError):
+        store.put({"userId": "u", "timestamp": "t1"})

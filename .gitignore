@@ -17,3 +17,6 @@ dev/*.tflite
 crash.log
 .env
 .env.*
+
+# Build output (Lambda packages)
+backend/*/build/
