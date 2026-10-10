@@ -1,5 +1,15 @@
 # Measurements API (V1)
 
+## Summary (SOART)
+
+- **Scenario:** the browser measures each photo locally and needs somewhere to save the numbers and get a score back.
+- **Obstacle:** the browser runs on a device the user controls, so any request can be edited; the server can't trust the user ID, the time or a claimed ratio. And because photos are discarded, anything not saved at check-in is lost.
+- **Action:** the user ID comes only from the verified Cognito token; the server stamps the time and computes the ratio and shoulder check itself; the body accepts exactly six fields with strict limits; raw per-photo values are stored and scores recomputed on every read ([ADR-005](adr/005-store-ingredients-recompute-scores.md)).
+- **Result:** one user can never read or write another's history, impossible values never reach the database, and formula improvements apply to the whole history. 63 tests cover every rule below.
+- **Troubleshooting:** unknown paths originally returned 405; they now return 404, with 405 kept for wrong methods. Tests that advanced a fake clock got 401 because their tokens had expired; the API was right, and the tests now mint tokens from the fake clock.
+
+The rest of this document is the reference contract.
+
 One Lambda behind a Lambda Function URL, served through CloudFront at `/api/*` on the same domain as the web app. Requests and responses are JSON.
 
 The browser measures the photo and sends **numbers only** ([ADR-002](adr/002-pose-extraction-in-browser.md)). Every request is treated as untrusted: the browser runs on the user's device, and anyone can edit a request in DevTools.

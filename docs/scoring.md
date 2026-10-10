@@ -1,5 +1,15 @@
 # Scoring (V1)
 
+## Summary (SOART)
+
+- **Scenario:** each saved measurement needs a score that tells the user whether their shape is changing, with nothing hidden.
+- **Obstacle:** a score needs a reference point; an "ideal body" target is unscientific and alienating, invented points hide the real number, and photo-to-photo noise can look like progress.
+- **Action:** score only the steady shoulder-to-waist ratio; show it as is on the first photo, then as a percent change against the user's own first photo; treat changes under ±2% as noise; return the formula, inputs and a one-sentence explanation with every result.
+- **Result:** every number can be checked by hand ((1.78 − 1.70) ÷ 1.70 = 4.7%); 20 tests cover rises, falls, noise, flagged photos and bad input.
+- **Troubleshooting:** the hip-normalised indexes were first expected to vary about 3% between photos but varied 11% on two same-session photos, so they were left out of the score; the ±2% noise threshold is a placeholder until it's calibrated (see below).
+
+The rest of this document is the reference specification.
+
 Code: `backend/scoring/score.py` (tests in `test_score.py`).
 
 ## What is scored
