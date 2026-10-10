@@ -1,13 +1,13 @@
 # Next session — ONE task
 
-**M2 — Terraform for auth, data and API (then GATE 3)**
-Design and write the `infra/modules/{auth,data,api}` modules called from `infra/app/`: Cognito user pool + app client, the DynamoDB table (userId + timestamp), and the API Lambda with its Function URL, 7-day logs and least-privilege role. Decide how to package PyJWT + cryptography for Lambda's Linux. Then show the plan summary (GATE 3), apply as `liftlens-deploy`, and smoke-test with curl and a real Cognito token.
+**M3 — Design the browser app's flow and sign-in**
+Decide how the React app moves through sign in → capture/upload → pose overlay preview → measurements + score explanation → save → history chart, and how it signs in with Cognito (library and SRP). Design first; then build the sign-in screen against the live user pool.
 
-First (needed to deploy as the deploy role):
-- Add the `liftlens-deploy` profile to ~/.aws/config and check `aws sts get-caller-identity --profile liftlens-deploy`.
-- Check the Lambda concurrent-executions quota request (Service Quotas).
+Also open from M2:
+- Decide whether to keep USER_PASSWORD_AUTH on the app client once the browser uses SRP (BACKLOG).
+- Confirm models.ts works in a real browser and that the segmenter's person value is 0.
 
-Done when: POST and GET work against AWS with a real token, and you can explain every resource in the plan.
+Done when: the flow and sign-in approach are agreed and you can sign in to the local app with your LiftLens account.
 
 ## End of every milestone
 - Update README.md: status table, architecture diagram (solid = built, dashed = planned), key decisions.
