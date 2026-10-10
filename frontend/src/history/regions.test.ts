@@ -6,6 +6,13 @@ describe('body map regions', () => {
     expect(REGIONS.filter((r) => r.measured).map((r) => r.id)).toEqual(['shoulders', 'waist'])
   })
 
+  it('marks no back part as measured: V1 takes a front photo only', () => {
+    const backParts = REGIONS.filter((r) => r.view === 'back')
+    expect(backParts).toHaveLength(8)
+    expect(backParts.every((r) => !r.measured)).toBe(true)
+    expect(backParts.every((r) => r.detail.includes('front photo only'))).toBe(true)
+  })
+
   it('has one entry per region, each with a label and detail', () => {
     expect(new Set(REGIONS.map((r) => r.id)).size).toBe(REGIONS.length)
     for (const r of REGIONS) {

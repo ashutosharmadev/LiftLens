@@ -1,14 +1,21 @@
 import { useState, type KeyboardEvent } from 'react'
-import { region, type RegionId } from './regions'
+import { region, type BackRegionId, type FrontRegionId, type RegionId } from './regions'
 
 /**
- * Muscle shapes for a front-facing figure in a 200 x 400 box. `side` shapes are
- * drawn for the left of the figure and mirrored for the right, so the body is
- * exactly symmetric; `centre` shapes are drawn once.
+ * Muscle shapes in a 200 x 400 box. `side` shapes are drawn for the left of the
+ * figure and mirrored for the right, so the body is exactly symmetric; `centre`
+ * shapes are drawn once.
  */
-const SHAPES: Record<RegionId, { centre?: string[]; side?: string[] }> = {
+interface Shapes {
+  centre?: string[]
+  side?: string[]
+}
+
+const HEAD = 'M100 13 C111 13 117 23 117 34 C117 46 110 55 100 55 C90 55 83 46 83 34 C83 23 89 13 100 13 Z'
+
+const FRONT: Record<FrontRegionId, Shapes> = {
   head: {
-    centre: ['M100 13 C111 13 117 23 117 34 C117 46 110 55 100 55 C90 55 83 46 83 34 C83 23 89 13 100 13 Z'],
+    centre: [HEAD],
     side: ['M92 56 L99 60 L99 70 L84 72 Q90 66 92 56 Z'],
   },
   shoulders: { side: ['M77 74 Q60 74 51 87 Q46 100 50 117 Q57 105 64 97 Q70 89 79 83 Z'] },
@@ -60,31 +67,72 @@ function Pair({ d, className }: { d: string; className?: string }) {
   )
 }
 
-const ORDER: RegionId[] = ['head', 'legs', 'hips', 'arms', 'waist', 'chest', 'shoulders']
+const BACK: Record<BackRegionId, Shapes> = {
+  upperBack: {
+    // Traps from the neck down the spine, plus the shoulder blades.
+    centre: ['M100 56 L92 59 Q87 67 77 73 L84 80 Q93 92 100 128 Q107 92 116 80 L123 73 Q113 67 108 59 Z'],
+    side: ['M82 84 L93 100 L90 116 Q80 118 71 110 L69 98 Q73 89 82 84 Z'],
+  },
+  rearShoulders: { side: ['M75 75 Q60 74 51 87 Q46 100 50 117 Q58 106 64 98 Q69 90 78 83 Z'] },
+  backArms: {
+    side: [
+      'M62 108 Q53 113 49 124 L45 151 Q50 159 56 156 L60 136 L64 117 Z',
+      'M44 165 Q39 182 34 207 L42 211 L49 190 L55 167 Q50 161 44 165 Z',
+    ],
+  },
+  lats: { side: ['M70 113 Q80 120 90 120 L92 132 L91 160 Q86 172 76 180 Q72 160 70 140 Z'] },
+  lowerBack: { side: ['M94 131 L99 131 L99 198 L86 198 Q84 186 86 178 Q92 170 94 158 Z'] },
+  glutes: { side: ['M70 201 Q84 197 99 205 L99 238 Q86 248 70 238 Q64 222 70 201 Z'] },
+  hamstrings: {
+    side: [
+      'M68 246 Q76 250 83 251 L84 296 Q78 298 74 294 Q66 270 68 246 Z',
+      'M86 251 Q92 251 97 248 L95 294 Q90 298 87 296 Z',
+    ],
+  },
+  calves: {
+    side: [
+      'M71 306 Q66 322 70 338 Q74 348 80 346 L82 318 Q80 308 71 306 Z',
+      'M85 308 Q94 308 95 322 Q96 340 90 348 Q84 346 84 330 Z',
+    ],
+  },
+}
 
-/**
- * Front body map for V1: shoulders and waist (what LiftLens measures) in lime,
- * every other part grey as "not measured". Each part is a button; tapping it
- * shows what LiftLens does with that part and the latest ratio.
- */
-export function BodyMap({ ratio }: { ratio: number | null }) {
-  const [selected, setSelected] = useState<RegionId | null>(null)
-  const chosen = selected ? region(selected) : null
+// Draw order, back to front: overlapping edges belong to the later shape.
+const FRONT_ORDER: FrontRegionId[] = ['head', 'legs', 'hips', 'arms', 'waist', 'chest', 'shoulders']
+const BACK_ORDER: BackRegionId[] = ['calves', 'hamstrings', 'glutes', 'backArms', 'lowerBack', 'lats', 'upperBack', 'rearShoulders']
 
+interface FigureProps<Id extends RegionId> {
+  label: string
+  caption: string
+  /** Small line under the caption, e.g. why the figure is all grey. */
+  note?: string
+  shapes: Record<Id, Shapes>
+  order: Id[]
+  selected: RegionId | null
+  onSelect: (id: RegionId) => void
+  /** Back of the head as plain outline, since the back figure has no head part. */
+  plainHead?: boolean
+  /** Dashed lines where the two widths are taken (front only). */
+  widthLines?: boolean
+}
+
+/** One body figure: dark outline with tappable muscle groups on top. */
+function Figure<Id extends RegionId>({ label, caption, note, shapes, order, selected, onSelect, plainHead, widthLines }: FigureProps<Id>) {
   function onKey(id: RegionId, event: KeyboardEvent) {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      setSelected(id)
+      onSelect(id)
     }
   }
 
   return (
-    <div className="grid items-center gap-6 sm:grid-cols-[minmax(0,14rem)_1fr]">
-      <svg viewBox="0 0 200 400" className="mx-auto h-80 w-auto sm:h-96" role="group" aria-label="Front body map">
+    <figure className="flex flex-col items-center">
+      <svg viewBox="0 0 200 400" className="h-72 w-auto sm:h-80" role="group" aria-label={label}>
         <g aria-hidden className="pointer-events-none fill-graphite-950">
           <Pair d={SILHOUETTE} />
+          {plainHead && <path d={HEAD} className="fill-graphite-800" />}
         </g>
-        {ORDER.map((id) => {
+        {order.map((id) => {
           const r = region(id)
           const isSelected = selected === id
           const fill = r.measured
@@ -95,25 +143,66 @@ export function BodyMap({ ratio }: { ratio: number | null }) {
               key={id}
               role="button"
               tabIndex={0}
-              aria-label={`${r.label}: ${r.measured ? 'measured' : 'not measured in V1'}`}
+              aria-label={`${r.label}: ${r.measured ? 'measured' : 'not measured'}`}
               aria-pressed={isSelected}
-              onClick={() => setSelected(id)}
+              onClick={() => onSelect(id)}
               onKeyDown={(e) => onKey(id, e)}
               strokeWidth="1.5"
               strokeLinejoin="round"
               className={`cursor-pointer stroke-graphite-950 outline-none transition-colors ${fill} [&:focus-visible>path]:stroke-graphite-100`}
             >
-              {SHAPES[id].centre?.map((d) => <path key={d} d={d} />)}
-              {SHAPES[id].side?.map((d) => <Pair key={d} d={d} />)}
+              {shapes[id].centre?.map((d) => <path key={d} d={d} />)}
+              {shapes[id].side?.map((d) => <Pair key={d} d={d} />)}
             </g>
           )
         })}
-        {/* Where the two widths are taken: edge to edge across the shoulders and the waist. */}
-        <g aria-hidden className="pointer-events-none stroke-graphite-100/60" strokeWidth="1" strokeDasharray="3 3">
-          <line x1="46" x2="154" y1="98" y2="98" />
-          <line x1="71" x2="129" y1="168" y2="168" />
-        </g>
+        {widthLines && (
+          <g aria-hidden className="pointer-events-none stroke-graphite-100/60" strokeWidth="1" strokeDasharray="3 3">
+            <line x1="46" x2="154" y1="98" y2="98" />
+            <line x1="71" x2="129" y1="168" y2="168" />
+          </g>
+        )}
       </svg>
+      <figcaption aria-hidden className="mt-2 text-center">
+        <span className="block font-mono text-[11px] uppercase tracking-wider text-graphite-300">{caption}</span>
+        {note && <span className="block text-[11px] text-graphite-500">{note}</span>}
+      </figcaption>
+    </figure>
+  )
+}
+
+/**
+ * Body map for V1. Front: shoulders and waist (what LiftLens measures) in lime,
+ * everything else grey. Back: all grey, because V1 takes a front photo only.
+ * Each part is a button; tapping it shows what LiftLens does with that part.
+ */
+export function BodyMap({ ratio }: { ratio: number | null }) {
+  const [selected, setSelected] = useState<RegionId | null>(null)
+  const chosen = selected ? region(selected) : null
+
+  return (
+    <div className="grid items-center gap-6 md:grid-cols-[auto_1fr]">
+      <div className="flex justify-center gap-2 sm:gap-6">
+        <Figure
+          label="Front body map"
+          caption="Front"
+          shapes={FRONT}
+          order={FRONT_ORDER}
+          selected={selected}
+          onSelect={setSelected}
+          widthLines
+        />
+        <Figure
+          label="Back body map, front photo only"
+          caption="Back"
+          note="Front photo only"
+          shapes={BACK}
+          order={BACK_ORDER}
+          selected={selected}
+          onSelect={setSelected}
+          plainHead
+        />
+      </div>
 
       <div>
         <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-graphite-300">
@@ -121,7 +210,7 @@ export function BodyMap({ ratio }: { ratio: number | null }) {
             <span className="size-2.5 rounded-full bg-signal" /> Measured
           </span>
           <span className="flex items-center gap-2">
-            <span className="size-2.5 rounded-full bg-graphite-700" /> Not measured in V1
+            <span className="size-2.5 rounded-full bg-graphite-700" /> Not measured
           </span>
         </div>
 
