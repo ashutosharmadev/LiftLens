@@ -1,6 +1,6 @@
 import pytest
 
-from score import NOISE_THRESHOLD, flagged_result, progress_result, ratio_result
+from score import NOISE_THRESHOLD, flagged_result, progress_result, ratio_result, since_previous_result
 
 
 class TestRatioResult:
@@ -70,3 +70,21 @@ class TestFlaggedResult:
 
     def test_explains_a_too_narrow_outline(self):
         assert "too narrow" in flagged_result(1.2, "too_narrow").explanation
+
+
+class TestSincePreviousResult:
+    def test_uses_the_same_noise_rule_and_wording(self):
+        result = since_previous_result(current=1.78, previous=1.73)
+        assert result.status == "increased"
+        assert result.explanation == (
+            "Your shoulder-to-waist ratio rose 2.9% since your previous check-in (1.73 → 1.78)."
+        )
+        assert result.formula == "(current - previous) / previous × 100"
+        assert result.inputs["previous"] == 1.73
+
+    def test_small_change_is_noise(self):
+        assert since_previous_result(current=1.74, previous=1.73).status == "no_clear_change"
+
+    def test_names_the_bad_input(self):
+        with pytest.raises(ValueError, match="previous"):
+            since_previous_result(current=1.7, previous=9.0)

@@ -5,6 +5,7 @@ docs/adr/004-scale-free-measurements.md), against the user's own first photo:
 
 - ratio_result: the ratio itself, shown from the first photo on.
 - progress_result: percent change since the first photo, from the second photo on.
+- since_previous_result: percent change since the previous ok check-in.
 - flagged_result: a photo that failed the shoulder plausibility check; shown, not scored.
 
 Every result carries its formula, its named inputs and a one-sentence
@@ -73,32 +74,45 @@ def flagged_result(shoulder_to_waist: float, shoulder_check: str) -> ScoreResult
     )
 
 
-def progress_result(current: float, baseline: float) -> ScoreResult:
+def _change_result(current: float, reference: float, reference_label: str, since: str, name: str) -> ScoreResult:
+    """Percent change from a reference ratio, with the noise rule. Shared by every change score."""
     current = validate_ratio(current, "current")
-    baseline = validate_ratio(baseline, "baseline")
+    reference = validate_ratio(reference, reference_label)
 
-    change = (current - baseline) / baseline
+    change = (current - reference) / reference
     percent = change * 100
-    numbers = f"({baseline:.2f} → {current:.2f})"
+    numbers = f"({reference:.2f} → {current:.2f})"
 
     if abs(change) < NOISE_THRESHOLD:
         status = "no_clear_change"
         explanation = (
-            f"Your shoulder-to-waist ratio changed {percent:+.1f}% since your first photo {numbers}, "
+            f"Your shoulder-to-waist ratio changed {percent:+.1f}% since {since} {numbers}, "
             f"within the ±{NOISE_THRESHOLD:.0%} measurement noise, so there's no clear change yet."
         )
     elif change > 0:
         status = "increased"
-        explanation = f"Your shoulder-to-waist ratio rose {percent:.1f}% since your first photo {numbers}."
+        explanation = f"Your shoulder-to-waist ratio rose {percent:.1f}% since {since} {numbers}."
     else:
         status = "decreased"
-        explanation = f"Your shoulder-to-waist ratio fell {abs(percent):.1f}% since your first photo {numbers}."
+        explanation = f"Your shoulder-to-waist ratio fell {abs(percent):.1f}% since {since} {numbers}."
 
     return ScoreResult(
-        name="shoulder_to_waist_change_percent",
+        name=name,
         value=percent,
         status=status,
-        formula="(current - baseline) / baseline × 100",
-        inputs={"current": current, "baseline": baseline, "noise_threshold": NOISE_THRESHOLD},
+        formula=f"(current - {reference_label}) / {reference_label} × 100",
+        inputs={"current": current, reference_label: reference, "noise_threshold": NOISE_THRESHOLD},
         explanation=explanation,
+    )
+
+
+def progress_result(current: float, baseline: float) -> ScoreResult:
+    """Change since the user's first ok photo (the baseline)."""
+    return _change_result(current, baseline, "baseline", "your first photo", "shoulder_to_waist_change_percent")
+
+
+def since_previous_result(current: float, previous: float) -> ScoreResult:
+    """Change since the user's previous ok check-in."""
+    return _change_result(
+        current, previous, "previous", "your previous check-in", "shoulder_to_waist_change_since_previous_percent"
     )
