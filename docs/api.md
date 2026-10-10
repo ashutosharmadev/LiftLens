@@ -1,87 +1,149 @@
-> **Superseded.** This document describes the original FastAPI/PostgreSQL design. LiftLens is now serverless ([ADR-001](adr/001-serverless-terraform.md)); see the [root README](../README.md). This file will be updated or removed in M6.
+# Measurements API (V1)
 
-# LiftLens — API Design
+One Lambda behind a Lambda Function URL, served through CloudFront at `/api/*` on the same domain as the web app. Requests and responses are JSON.
 
-Base path: `/api/v1`. REST over HTTPS, JSON bodies, JWT bearer auth.
-
-## Versioning
-
-The `/v1` prefix is literal and load-bearing: breaking changes ship as `/v2` alongside `/v1`
-rather than mutating it in place, so the frontend (or any future consumer) never breaks on
-deploy. Version bump criteria: any change to a response shape, a status code's meaning, or
-required-field semantics.
+The browser measures the photo and sends **numbers only** ([ADR-002](adr/002-pose-extraction-in-browser.md)). Every request is treated as untrusted: the browser runs on the user's device, and anyone can edit a request in DevTools.
 
 ## Authentication
 
-- `POST /api/v1/auth/register` — email + password → creates user.
-- `POST /api/v1/auth/login` — email + password → access token (short-lived, 15 min) +
-  refresh token (long-lived, httpOnly cookie).
-- `POST /api/v1/auth/refresh` — refresh token (cookie) → new access token.
-- `POST /api/v1/auth/logout` — invalidates refresh token.
-- All other endpoints require `Authorization: Bearer <access_token>`.
+Every request needs `Authorization: Bearer <Cognito ID token>`. The Lambda verifies the token's signature, issuer, audience and expiry, and takes the user's ID from its `sub` claim.
 
-## Endpoints
+**The user ID never comes from the request body.** If it did, anyone could read or write another user's history by changing one field.
 
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/scans` | Upload front/side/back images, create scan, enqueue pipeline |
-| GET | `/scans` | List current user's scans (paginated, most recent first) |
-| GET | `/scans/{scan_id}` | Full scan detail: status, measurements, ratios, score, insights |
-| DELETE | `/scans/{scan_id}` | Delete a scan and its stored images |
-| GET | `/scans/{scan_id}/status` | Lightweight polling endpoint (status only) |
-| GET | `/progress` | Time-series of measurements/scores across all of a user's scans |
-| GET | `/progress/compare?a={scan_id}&b={scan_id}` | Diff of two scans |
-| GET | `/users/me` | Current user profile |
-| PATCH | `/users/me` | Update profile (units preference, height calibration, etc.) |
-| DELETE | `/users/me` | Account + data deletion |
+## Data model
 
-## Request/response model examples
+DynamoDB table, on-demand billing. One item per measurement.
 
-**POST /scans** — request: `multipart/form-data` with `front`, `side`, `back` image files.
-Response (`202 Accepted`):
-```json
-{ "scan_id": "uuid", "status": "pending", "created_at": "iso8601" }
-```
+| Attribute | Type | Key | Meaning |
+|---|---|---|---|
+| `userId` | string | partition key | Cognito `sub` of the owner |
+| `timestamp` | string (ISO 8601, UTC) | sort key | When the server saved it |
+| `shoulderToWaist` | number | | `shoulderEdgePx ÷ waistEdgePx`, computed by the server |
+| `shoulderEdgePx` | number | | Outer shoulder width, edge to edge |
+| `waistEdgePx` | number | | Waist width, edge to edge |
+| `shoulderJointPx` | number | | Distance between the shoulder joint landmarks |
+| `hipJointPx` | number | | Distance between the hip joint landmarks |
+| `torsoLengthPx` | number | | Shoulder line to hip line |
+| `shoulderCheck` | string | | `ok`, `too_wide` or `too_narrow`, computed by the server |
+| `methodVersion` | string | | Which version of the measurement maths produced the numbers |
 
-**GET /scans/{scan_id}** — response (`200 OK`, when complete):
+Not stored: the photo (it never leaves the device), the user's email (Cognito has it), and scores (recomputed on every read, see [ADR-005](adr/005-store-ingredients-recompute-scores.md)).
+
+Pixel values are **never shown** to users: they depend on camera distance ([ADR-004](adr/004-scale-free-measurements.md)). They are stored as ingredients, so ratios and rulers invented later can be computed for old photos too.
+
+**Baseline:** the earliest item with `shoulderCheck = "ok"`, found by reading the user's items in order. A user adds about one item a week, so reading them all stays small.
+
+## `POST /api/measurements`
+
+Saves one measurement and returns it with its score.
+
+**Request body.** Exactly these fields; unknown fields are rejected.
+
 ```json
 {
-  "scan_id": "uuid",
-  "status": "complete",
-  "pipeline_version": "v1.2.0",
-  "measurements": [ { "metric_key": "shoulder_width", "value": 0.41, "confidence": 0.93 } ],
-  "ratios": [ { "ratio_key": "shoulder_to_waist", "value": 1.34 } ],
-  "score": {
-    "proportion_score": 78.2,
-    "symmetry_score": 91.0,
-    "posture_score": 84.5,
-    "components": [ { "key": "shoulder_to_waist", "weight": 0.4, "contribution": 31.3 } ]
-  },
-  "insights": [ { "category": "progress", "text": "Shoulder-to-waist ratio improved 4% since your last scan." } ]
+  "shoulderEdgePx": 1029,
+  "waistEdgePx": 577,
+  "shoulderJointPx": 690,
+  "hipJointPx": 364,
+  "torsoLengthPx": 905,
+  "methodVersion": "2026-10-edge-v1"
 }
 ```
-When `status` is `pending` or `processing`, the same endpoint returns just `scan_id`, `status`,
-and `created_at` — the client polls this endpoint (or `/status` for a cheaper check) until
-`complete` or `failed`.
 
-## Error handling
+**Validation**
 
-Consistent error envelope on every non-2xx response:
+| Rule | Error |
+|---|---|
+| Body larger than 2 KB | 413 |
+| Body isn't a JSON object, a field is missing, or an unknown field is present | 400 |
+| Any pixel value isn't a finite number between 1 and 10,000 | 400 |
+| `methodVersion` isn't a known version | 400 |
+| `shoulderEdgePx ÷ waistEdgePx` is outside 0.8–3.0 | 400 |
+
+Error responses name the field: `{"error": "waistEdgePx must be between 1 and 10000"}`.
+
+**Server-side steps**
+
+1. Verify the token; take `userId` from `sub`.
+2. Validate the body.
+3. Compute `shoulderToWaist` and `shoulderCheck` (outer shoulder ÷ shoulder joints, plausible range 1.1–1.8).
+4. Stamp `timestamp` with the server's current UTC time.
+5. Save the item.
+6. Read the user's items, find the baseline, compute the score.
+
+**Response `201`**
+
 ```json
-{ "error": { "code": "VALIDATION_FAILED", "message": "No person detected in front-pose image.", "stage": "validation" } }
+{
+  "measurement": {
+    "timestamp": "2026-10-10T09:30:00Z",
+    "shoulderToWaist": 1.783,
+    "shoulderCheck": "ok",
+    "methodVersion": "2026-10-edge-v1",
+    "isBaseline": false
+  },
+  "score": {
+    "name": "shoulder_to_waist_change_percent",
+    "value": 4.88,
+    "status": "increased",
+    "formula": "(current - baseline) / baseline × 100",
+    "inputs": {"current": 1.783, "baseline": 1.7, "noise_threshold": 0.02},
+    "explanation": "Your shoulder-to-waist ratio rose 4.9% since your first photo (1.70 → 1.78)."
+  }
+}
 ```
-- `4xx` — client-correctable (bad input, auth failure, not found).
-- `422` — Pydantic validation failures, FastAPI's default, kept as-is rather than
-  reinvented.
-- `5xx` — genuine server/pipeline faults; these are logged with full stage context
-  server-side but return a generic message to the client (never leak stack traces).
-- Pipeline-stage failures (e.g., detection confidence too low) surface as a `failed` scan
-  status with a `failure_reason` field, not as an HTTP error — the request to *create* the scan
-  succeeded; it's the async processing that failed, and the API shape should reflect that
-  distinction honestly.
 
-## Rate limiting & abuse prevention
+Pixel ingredients are stored but not returned.
 
-Upload endpoints are rate-limited per user (e.g., N scans per hour) — both a cost-control
-measure (CV inference isn't free) and a basic anti-abuse measure, enforced at the API-gateway
-layer so it doesn't clutter route/service code.
+## `GET /api/measurements`
+
+Returns all of the signed-in user's measurements, oldest first, each with its score recomputed.
+
+**Response `200`**
+
+```json
+{
+  "baselineTimestamp": "2026-09-01T08:00:00Z",
+  "measurements": [
+    {
+      "timestamp": "2026-09-01T08:00:00Z",
+      "shoulderToWaist": 1.7,
+      "shoulderCheck": "ok",
+      "methodVersion": "2026-10-edge-v1",
+      "isBaseline": true,
+      "score": {"status": "baseline", "explanation": "Your shoulders are 1.70× as wide as your waist.", "...": "..."}
+    },
+    {
+      "timestamp": "2026-09-08T08:00:00Z",
+      "shoulderToWaist": 2.1,
+      "shoulderCheck": "too_wide",
+      "methodVersion": "2026-10-edge-v1",
+      "isBaseline": false,
+      "score": {"status": "flagged", "explanation": "This photo was flagged (your arms may be in the shoulder outline), so it isn't used for progress.", "...": "..."}
+    }
+  ]
+}
+```
+
+`baselineTimestamp` is `null` until there is an `ok` measurement.
+
+## Scores per item
+
+| Item | Score |
+|---|---|
+| Flagged (`shoulderCheck` isn't `ok`) | Status `flagged`, no percent change; shown greyed out |
+| The baseline | `ratio_result`, status `baseline` |
+| Any other `ok` item, after the baseline | `progress_result` against the baseline |
+| An `ok` item when no baseline exists yet | Can't happen: the first `ok` item is the baseline |
+
+Formulas and wording are in [scoring.md](scoring.md).
+
+## Errors
+
+| Status | When |
+|---|---|
+| 400 | Invalid body (message names the field) |
+| 401 | Missing, invalid or expired token |
+| 405 | Any method or path other than the two above |
+| 413 | Body larger than 2 KB |
+| 500 | Unexpected error (details only in the Lambda's logs) |
