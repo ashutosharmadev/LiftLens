@@ -1,6 +1,6 @@
 # ADR-003: No reserved concurrency until the account quota is raised
 
-- Status: Accepted (temporary)
+- Status: Superseded on 2026-10-10 (the account limit was raised; see Result)
 - Date: 2026-10-05
 
 ## Scenario
@@ -33,6 +33,8 @@ Alternatives considered:
 - The quota of 10 acts as a free account-wide cap on Lambda spend in the meantime.
 - Residual risk: the kill switch could be delayed (not lost) under heavy API traffic. SNS delivers to Lambda asynchronously and Lambda retries throttled async events.
 - Follow-up tracked in BACKLOG.md.
+
+**Update, 2026-10-10:** the account limit was raised to 400 (the request for 1,000 is still open). Reserved concurrency is now set: kill switch 2, API 2. With the account limit no longer acting as a cap, the API's reservation of 2 is what limits how fast a flood of requests can spend.
 
 ## Troubleshooting
 
