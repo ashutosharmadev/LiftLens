@@ -5,6 +5,7 @@ docs/adr/004-scale-free-measurements.md), against the user's own first photo:
 
 - ratio_result: the ratio itself, shown from the first photo on.
 - progress_result: percent change since the first photo, from the second photo on.
+- flagged_result: a photo that failed the shoulder plausibility check; shown, not scored.
 
 Every result carries its formula, its named inputs and a one-sentence
 explanation, so any number shown to a user can be recomputed by hand.
@@ -27,7 +28,7 @@ MAX_RATIO = 3.0
 class ScoreResult:
     name: str
     value: float
-    status: str  # "baseline" | "increased" | "decreased" | "no_clear_change"
+    status: str  # "baseline" | "increased" | "decreased" | "no_clear_change" | "flagged"
     formula: str
     inputs: dict[str, float] = field(default_factory=dict)
     explanation: str = ""
@@ -50,6 +51,25 @@ def ratio_result(shoulder_to_waist: float) -> ScoreResult:
         formula="shoulder_width / waist_width (both edge to edge)",
         inputs={"shoulder_to_waist": ratio},
         explanation=f"Your shoulders are {ratio:.2f}× as wide as your waist.",
+    )
+
+
+def flagged_result(shoulder_to_waist: float, shoulder_check: str) -> ScoreResult:
+    """A measurement whose shoulder outline looked implausible: shown, not scored."""
+    ratio = validate_ratio(shoulder_to_waist)
+    return ScoreResult(
+        name="shoulder_to_waist",
+        value=ratio,
+        status="flagged",
+        formula="not scored: shoulder outline failed the plausibility check",
+        inputs={"shoulder_to_waist": ratio},
+        explanation=(
+            "This photo was flagged (your arms may be in the shoulder outline), "
+            "so it isn't used for progress."
+            if shoulder_check == "too_wide"
+            else "This photo was flagged (the shoulder outline looks too narrow), "
+            "so it isn't used for progress."
+        ),
     )
 
 

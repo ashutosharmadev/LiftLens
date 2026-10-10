@@ -1,6 +1,6 @@
 import pytest
 
-from score import NOISE_THRESHOLD, progress_result, ratio_result
+from score import NOISE_THRESHOLD, flagged_result, progress_result, ratio_result
 
 
 class TestRatioResult:
@@ -59,3 +59,14 @@ class TestValidation:
     def test_names_which_input_was_bad(self):
         with pytest.raises(ValueError, match="baseline"):
             progress_result(current=1.7, baseline=5.0)
+
+
+class TestFlaggedResult:
+    def test_is_shown_but_not_scored(self):
+        result = flagged_result(2.1, "too_wide")
+        assert result.status == "flagged"
+        assert result.value == pytest.approx(2.1)
+        assert "arms may be in the shoulder outline" in result.explanation
+
+    def test_explains_a_too_narrow_outline(self):
+        assert "too narrow" in flagged_result(1.2, "too_narrow").explanation
