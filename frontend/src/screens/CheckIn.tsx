@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { Lock, MoveHorizontal, PersonStanding, Repeat, Smartphone, type LucideIcon } from 'lucide-react'
+import { Frame, Lock, MoveHorizontal, PersonStanding, Repeat, ScanFace, Smartphone, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { createBeeper, type Beeper } from '../capture/beep'
 import { BodyOutline } from '../capture/BodyOutline'
@@ -15,6 +15,14 @@ const TIPS: { icon: LucideIcon; text: string }[] = [
   { icon: MoveHorizontal, text: 'Step back about 2 m' },
   { icon: PersonStanding, text: 'Face the camera, arms slightly out' },
   { icon: Repeat, text: 'Same clothes, light and spot each time' },
+]
+
+// What to look for on the review screen. Prompts for the person, not results:
+// nothing has been checked yet, so no ticks.
+const REVIEW_CHECKS: { icon: LucideIcon; text: string }[] = [
+  { icon: Frame, text: 'In frame' },
+  { icon: ScanFace, text: 'Facing camera' },
+  { icon: PersonStanding, text: 'Arms out' },
 ]
 
 /** Guided check-in photo: propped phone, front camera, body outline, 10 s countdown. */
@@ -197,13 +205,22 @@ export function CheckIn() {
   if (phase.kind === 'review') {
     return (
       <main className="space-y-4">
-        <Stage aspect={phase.photo.width / phase.photo.height}>
+        {/* Nearly full height: the screen minus the header, check chips and buttons. */}
+        <Stage aspect={phase.photo.width / phase.photo.height} maxHeight="calc(100dvh - 12rem)">
           <PhotoView photo={phase.photo} />
           <BodyOutline className="text-signal/80" />
         </Stage>
-        <p className="text-center text-sm text-graphite-300">
-          Shoulders to below your hips in view, facing the camera, arms away from your body?
-        </p>
+        <ul aria-label="Check your photo" className="flex flex-wrap justify-center gap-2">
+          {REVIEW_CHECKS.map(({ icon: Icon, text }) => (
+            <li
+              key={text}
+              className="inline-flex items-center gap-1.5 rounded-full border border-graphite-700 px-3 py-1 text-xs text-graphite-100"
+            >
+              <Icon aria-hidden className="size-3.5 text-signal" strokeWidth={1.75} />
+              {text}
+            </li>
+          ))}
+        </ul>
         <div className="grid grid-cols-2 gap-3">
           <Button type="button" variant="ghost" onClick={onRetake}>
             Retake
@@ -242,13 +259,13 @@ export function CheckIn() {
 
 /**
  * Frame shaped exactly like the picture (width / height), so the outline drawn
- * over it lines up with the photo. At most 70% of the screen height.
+ * over it lines up with the photo. No taller than maxHeight (default 70% of the screen).
  */
-function Stage({ aspect, children }: { aspect: number; children: ReactNode }) {
+function Stage({ aspect, maxHeight = '70dvh', children }: { aspect: number; maxHeight?: string; children: ReactNode }) {
   return (
     <div
       className="relative mx-auto overflow-hidden rounded-md bg-black"
-      style={{ aspectRatio: aspect, width: `min(100%, calc(70dvh * ${aspect}))` }}
+      style={{ aspectRatio: aspect, width: `min(100%, calc(${maxHeight} * ${aspect}))` }}
     >
       {children}
     </div>
