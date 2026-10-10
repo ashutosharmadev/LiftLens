@@ -99,6 +99,14 @@ Error responses name the field: `{"error": "waistEdgePx must be between 1 and 10
     "formula": "(current - baseline) / baseline × 100",
     "inputs": {"current": 1.783, "baseline": 1.7, "noise_threshold": 0.02},
     "explanation": "Your shoulder-to-waist ratio rose 4.9% since your first photo (1.70 → 1.78)."
+  },
+  "sinceLast": {
+    "name": "shoulder_to_waist_change_since_previous_percent",
+    "value": 3.06,
+    "status": "increased",
+    "formula": "(current - previous) / previous × 100",
+    "inputs": {"current": 1.783, "previous": 1.73, "noise_threshold": 0.02},
+    "explanation": "Your shoulder-to-waist ratio rose 3.1% since your previous check-in (1.73 → 1.78)."
   }
 }
 ```
@@ -114,6 +122,7 @@ Returns all of the signed-in user's measurements, oldest first, each with its sc
 ```json
 {
   "baselineTimestamp": "2026-09-01T08:00:00Z",
+  "noiseThreshold": 0.02,
   "measurements": [
     {
       "timestamp": "2026-09-01T08:00:00Z",
@@ -121,7 +130,8 @@ Returns all of the signed-in user's measurements, oldest first, each with its sc
       "shoulderCheck": "ok",
       "methodVersion": "2026-10-edge-v1",
       "isBaseline": true,
-      "score": {"status": "baseline", "explanation": "Your shoulders are 1.70× as wide as your waist.", "...": "..."}
+      "score": {"status": "baseline", "explanation": "Your shoulders are 1.70× as wide as your waist.", "...": "..."},
+      "sinceLast": null
     },
     {
       "timestamp": "2026-09-08T08:00:00Z",
@@ -129,13 +139,16 @@ Returns all of the signed-in user's measurements, oldest first, each with its sc
       "shoulderCheck": "too_wide",
       "methodVersion": "2026-10-edge-v1",
       "isBaseline": false,
-      "score": {"status": "flagged", "explanation": "This photo was flagged (your arms may be in the shoulder outline), so it isn't used for progress.", "...": "..."}
+      "score": {"status": "flagged", "explanation": "This photo was flagged (your arms may be in the shoulder outline), so it isn't used for progress.", "...": "..."},
+      "sinceLast": null
     }
   ]
 }
 ```
 
-`baselineTimestamp` is `null` until there is an `ok` measurement.
+`baselineTimestamp` is `null` until there is an `ok` measurement. `noiseThreshold` is the server's noise band (0.02 = ±2%), so the app's chart always matches the score.
+
+`sinceLast` is the change since the previous `ok` measurement (flagged ones are skipped), scored with the same rule as the main score. It's `null` for flagged items and for the first `ok` item. The app displays it; it never computes it.
 
 ## Scores per item
 

@@ -29,6 +29,7 @@ LiftLens tracks this number; it does not judge it against an "ideal" value such 
 |---|---|---|
 | First photo | `ratio_result` | `shoulder_width / waist_width` |
 | Second photo on | `progress_result` | `(current - baseline) / baseline × 100`, where `baseline` is the first photo's ratio |
+| Every `ok` photo after the first | `since_previous_result` | `(current - previous) / previous × 100`, where `previous` is the last `ok` photo before it; shown as "since last check-in" |
 | Flagged photo (shoulder check failed) | `flagged_result` | Not scored; shown greyed out and never used as the baseline |
 
 Every result returns:
@@ -43,6 +44,8 @@ Every result returns:
 | `explanation` | One plain-English sentence (numbers rounded for reading only) |
 
 Progress is shown as a **percent change**, not points. Points would need an invented scale (how many points is 1%? what is 100?) that every explanation would then have to unwrap; a percent change is the honest number with nothing to unwrap.
+
+Both change scores use one shared function, so they always apply the same noise rule. The app never recomputes them: it displays what the API returns, including the noise threshold for its chart.
 
 Status words describe, they don't judge: a rising ratio is "increased", not "better", because users don't all share the same goal.
 
