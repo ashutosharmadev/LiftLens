@@ -11,4 +11,5 @@ Done when: POST and GET work against AWS with a real token, and you can explain 
 
 ## End of every milestone
 - Update README.md: status table, architecture diagram (solid = built, dashed = planned), key decisions.
+- Update docs/project-story.md: new actions, results and every real error hit (problem, cause, fix, lesson).
 - Commit, add one line to LOG.md, set the next single task here.
