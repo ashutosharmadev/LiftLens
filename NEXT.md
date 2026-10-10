@@ -4,6 +4,7 @@
 Run the pose and segmentation models on the check-in photo in the browser, turn the result into the measurement ingredients, and show the shoulder-to-waist result with an explicit Save that posts it to the API. A bad photo (nobody found, shoulders/hips missing, shoulderCheck flagged) shows what went wrong and offers a retake. Design first: what does the person see while the models load and run, and what counts as a photo too bad to save?
 
 Still open:
+- History UI polish is done (trend chart, change since last check-in, body map); continue with step 3 from here.
 - Change the Cognito password (it appeared in a screenshot during M2's smoke test).
 - Confirm models.ts works in a real browser and that the segmenter's person value is 0.
 - Confirm the camera light goes off as soon as the photo is taken.
