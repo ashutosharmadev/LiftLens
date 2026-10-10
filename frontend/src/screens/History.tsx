@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { getHistory, SignedOutError, type History as HistoryData, type HistoryItem } from '../api/client'
 import { apiDeps } from '../auth/session'
+import { BodyMap } from '../history/BodyMap'
 import { changeSinceLast, scoredItems, sinceLastHeadline } from '../history/trend'
 import { TrendChart } from '../history/TrendChart'
 import { Button, Notice, Viewfinder } from '../ui/kit'
@@ -90,6 +91,13 @@ export function History() {
           <Button tabIndex={-1}>New check-in</Button>
         </Link>
       </Viewfinder>
+
+      {data && (
+        <section className="rounded-md border border-graphite-800 bg-graphite-900 p-4 sm:p-6">
+          <h2 className="mb-4 text-lg font-semibold">Body map</h2>
+          <BodyMap ratio={scored.at(-1)?.shoulderToWaist ?? null} />
+        </section>
+      )}
 
       {scored.length >= 2 && baseline !== undefined && (
         <section className="rounded-md border border-graphite-800 bg-graphite-900 p-4 sm:p-6">

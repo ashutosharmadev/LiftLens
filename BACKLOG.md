@@ -18,3 +18,4 @@
 - [ ] Update docs/ to the serverless architecture
 - [ ] M5: replace the AdministratorAccess permission set with a custom least-privilege set built from the actions Terraform actually used (CloudTrail)
 - [ ] Find end-sem exam dates and shift milestones
+- [ ] Measure more muscle groups on the body map (later version); needs a method that's reliable from photos before anything is shown
