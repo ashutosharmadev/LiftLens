@@ -79,6 +79,7 @@ The kill switch finds app resources by tag (`Project=LiftLens`, `Stack=app`), so
 | [002](docs/adr/002-pose-extraction-in-browser.md) | Pose detection runs in the browser | Physique photos are highly sensitive; if LiftLens never receives them there is nothing to leak |
 | [003](docs/adr/003-lambda-concurrency-exception.md) | No reserved Lambda concurrency yet | The account's limit of 10 allows none; a quota increase is requested |
 | [004](docs/adr/004-scale-free-measurements.md) | Measurements are scale-free | Shoulders and waist are both measured edge to edge, and a photo shows shape, not size, so LiftLens reports ratios instead of centimetres |
+| [005](docs/adr/005-store-ingredients-recompute-scores.md) | Store measurement ingredients, recompute scores | Photos are gone after each check-in, so saving the raw numbers lets better formulas apply to the whole history |
 
 ## Repository layout
 
@@ -90,7 +91,7 @@ The kill switch finds app resources by tag (`Project=LiftLens`, `Stack=app`), so
 | `infra/guardrails/` | Terraform: budget, budget action, deploy role, kill switch (deployed) |
 | `infra/app/` | Terraform: application stack (from M2) |
 | `dev/` | Python prototype and the script that exports reference numbers for tests |
-| `docs/` | ADRs and scoring documentation |
+| `docs/` | ADRs, [API contract](docs/api.md) and [scoring](docs/scoring.md) |
 
 ## Running locally
 
