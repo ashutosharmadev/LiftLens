@@ -14,8 +14,6 @@ resource "aws_cloudwatch_log_group" "kill_switch" {
   retention_in_days = 7
 }
 
-# No reserved concurrency: the account limit is 10, which allows none.
-# See docs/adr/003-lambda-concurrency-exception.md.
 resource "aws_lambda_function" "kill_switch" {
   function_name    = local.kill_switch_name
   description      = "Stops LiftLens app Lambdas and CloudFront when the budget limit is crossed."
@@ -26,6 +24,9 @@ resource "aws_lambda_function" "kill_switch" {
   source_code_hash = data.archive_file.kill_switch.output_base64sha256
   timeout          = 30
   memory_size      = 128
+
+  # Guarantees the kill switch can always run, even if the app floods the account.
+  reserved_concurrent_executions = 2
 
   environment {
     variables = {
