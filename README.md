@@ -4,6 +4,8 @@
 
 Progress photos are compared by eye, and lighting, camera distance, posture and memory all get in the way. LiftLens turns a front-facing photo into a measurement you can track and check.
 
+**[Read the project story](docs/project-story.md)**: the problems, decisions and fixes behind LiftLens, in SOART format.
+
 ## How it works
 
 - **Measures in your browser.** A pose model and a body-outline model run on your own device and measure your shoulder and waist widths. The photo is never uploaded ([ADR-002](docs/adr/002-pose-extraction-in-browser.md)).
