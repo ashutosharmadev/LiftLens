@@ -1,34 +1,66 @@
 import { useState, type KeyboardEvent } from 'react'
 import { region, type RegionId } from './regions'
 
-/** Outline paths for each region of a front-facing figure, in a 200 x 400 box. */
-const SHAPES: Record<RegionId, string[]> = {
-  head: ['M100 13 A18 23 0 1 1 99.9 13 Z', 'M90 56 L110 56 L113 72 L87 72 Z'],
-  shoulders: [
-    'M86 74 Q62 72 52 84 Q46 96 50 112 L64 108 Q66 92 76 84 Z',
-    'M114 74 Q138 72 148 84 Q154 96 150 112 L136 108 Q134 92 124 84 Z',
-  ],
-  chest: ['M76 84 Q88 76 100 78 Q112 76 124 84 Q134 92 136 108 L134 130 Q118 138 100 134 Q82 138 66 130 L64 108 Q66 92 76 84 Z'],
-  arms: [
-    'M50 112 L64 108 L57 160 L46 212 L30 210 L40 160 Z',
-    'M150 112 L136 108 L143 160 L154 212 L170 210 L160 160 Z',
-    'M30 213 L46 215 L45 230 Q38 238 31 230 Z',
-    'M170 213 L154 215 L155 230 Q162 238 169 230 Z',
-  ],
-  waist: ['M66 130 Q82 138 100 134 Q118 138 134 130 L130 168 Q128 186 130 196 L70 196 Q72 186 70 168 Z'],
-  hips: ['M70 196 L130 196 Q138 210 138 226 L100 236 L62 226 Q62 210 70 196 Z'],
-  legs: [
-    'M62 226 L99 236 L97 316 L70 316 Q63 280 62 226 Z',
-    'M138 226 L101 236 L103 316 L130 316 Q137 280 138 226 Z',
-    'M70 320 L96 320 L93 382 L76 382 Q68 352 70 320 Z',
-    'M130 320 L104 320 L107 382 L124 382 Q132 352 130 320 Z',
-    'M76 386 L93 386 L95 396 L70 396 Z',
-    'M124 386 L107 386 L105 396 L130 396 Z',
-  ],
+/**
+ * Muscle shapes for a front-facing figure in a 200 x 400 box. `side` shapes are
+ * drawn for the left of the figure and mirrored for the right, so the body is
+ * exactly symmetric; `centre` shapes are drawn once.
+ */
+const SHAPES: Record<RegionId, { centre?: string[]; side?: string[] }> = {
+  head: {
+    centre: ['M100 13 C111 13 117 23 117 34 C117 46 110 55 100 55 C90 55 83 46 83 34 C83 23 89 13 100 13 Z'],
+    side: ['M92 56 L99 60 L99 70 L84 72 Q90 66 92 56 Z'],
+  },
+  shoulders: { side: ['M77 74 Q60 74 51 87 Q46 100 50 117 Q57 105 64 97 Q70 89 79 83 Z'] },
+  chest: { side: ['M99 80 L99 117 Q86 124 72 118 Q64 111 66 100 Q71 88 83 83 Q92 79 99 80 Z'] },
+  arms: {
+    side: [
+      'M62 108 Q53 113 49 124 L45 151 Q50 159 56 156 L60 136 L64 117 Z',
+      'M44 165 Q39 182 34 207 L42 211 L49 190 L55 167 Q50 161 44 165 Z',
+    ],
+  },
+  waist: {
+    side: [
+      'M88 124 L98 124 L98 139 L87 139 Z',
+      'M87 142 L98 142 L98 157 L87 157 Z',
+      'M87 160 L98 160 L98 175 L88 175 Z',
+      'M88 178 L98 178 L98 201 Q92 197 89 189 Z',
+      'M84 124 L70 122 L70 140 L73 166 L72 184 L85 194 L85 160 Z',
+    ],
+  },
+  hips: { side: ['M71 190 L86 198 L99 205 L99 236 Q88 222 74 214 L68 209 Z'] },
+  legs: {
+    side: [
+      'M68 216 Q86 224 97 246 L95 292 Q86 300 76 294 Q66 262 68 216 Z',
+      'M84 266 Q95 274 95 290 Q89 297 82 291 Q79 278 84 266 Z',
+      'M71 308 Q67 326 70 341 L78 368 L82 368 L82 331 Q80 315 71 308 Z',
+      'M86 312 L94 310 L94 340 L90 368 L85 368 L86 330 Z',
+    ],
+  },
 }
 
-// Draw order: arms behind the shoulders so the deltoid caps sit on top.
-const ORDER: RegionId[] = ['arms', 'legs', 'hips', 'waist', 'chest', 'head', 'shoulders']
+/**
+ * The whole body outline, left half (mirrored for the right). Drawn under the
+ * muscles. It runs 1 unit past the centre so the two halves overlap with no seam.
+ */
+const SILHOUETTE =
+  'M101 52 L92 52 L91 66 Q78 70 64 74 Q50 78 48 94 L46 114 L42 140 L39 164 L34 190 L30 214 Q26 228 31 238 ' +
+  'Q37 243 41 234 L45 214 L50 190 L56 164 L60 140 L64 120 L66 112 L68 140 L72 168 L70 186 L66 206 L66 240 ' +
+  'L72 300 L68 330 L74 360 L80 378 L74 394 L96 396 L94 378 L96 340 L96 300 L98 250 L101 240 Z'
+
+const MIRROR = 'matrix(-1 0 0 1 200 0)'
+
+/** A left-side shape plus its mirror image. */
+function Pair({ d, className }: { d: string; className?: string }) {
+  return (
+    <>
+      <path d={d} className={className} />
+      <path d={d} transform={MIRROR} className={className} />
+    </>
+  )
+}
+
+const ORDER: RegionId[] = ['head', 'legs', 'hips', 'arms', 'waist', 'chest', 'shoulders']
 
 /**
  * Front body map for V1: shoulders and waist (what LiftLens measures) in lime,
@@ -48,7 +80,10 @@ export function BodyMap({ ratio }: { ratio: number | null }) {
 
   return (
     <div className="grid items-center gap-6 sm:grid-cols-[minmax(0,14rem)_1fr]">
-      <svg viewBox="0 0 200 400" className="mx-auto h-72 w-auto sm:h-80" role="group" aria-label="Front body map">
+      <svg viewBox="0 0 200 400" className="mx-auto h-80 w-auto sm:h-96" role="group" aria-label="Front body map">
+        <g aria-hidden className="pointer-events-none fill-graphite-950">
+          <Pair d={SILHOUETTE} />
+        </g>
         {ORDER.map((id) => {
           const r = region(id)
           const isSelected = selected === id
@@ -64,18 +99,19 @@ export function BodyMap({ ratio }: { ratio: number | null }) {
               aria-pressed={isSelected}
               onClick={() => setSelected(id)}
               onKeyDown={(e) => onKey(id, e)}
-              className={`cursor-pointer outline-none transition-colors ${fill} [&:focus-visible>path]:stroke-graphite-100`}
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+              className={`cursor-pointer stroke-graphite-950 outline-none transition-colors ${fill} [&:focus-visible>path]:stroke-graphite-100`}
             >
-              {SHAPES[id].map((d) => (
-                <path key={d} d={d} strokeWidth="2.5" strokeLinejoin="round" className="stroke-graphite-900" />
-              ))}
+              {SHAPES[id].centre?.map((d) => <path key={d} d={d} />)}
+              {SHAPES[id].side?.map((d) => <Pair key={d} d={d} />)}
             </g>
           )
         })}
         {/* Where the two widths are taken: edge to edge across the shoulders and the waist. */}
-        <g aria-hidden className="pointer-events-none stroke-graphite-950" strokeWidth="1.5" strokeDasharray="4 3">
-          <line x1="47" x2="153" y1="98" y2="98" />
-          <line x1="70" x2="130" y1="168" y2="168" />
+        <g aria-hidden className="pointer-events-none stroke-graphite-100/60" strokeWidth="1" strokeDasharray="3 3">
+          <line x1="46" x2="154" y1="98" y2="98" />
+          <line x1="71" x2="129" y1="168" y2="168" />
         </g>
       </svg>
 
